@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "whatsapp-clothing-export-ai-v3",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-15",
+  "vars": {
+    "OPENAI_MODEL": "gpt-5-mini",
+    "META_GRAPH_VERSION": "v23.0",
+    "BUSINESS_PROFILE": "We are a professional apparel supplier serving international B2B buyers. Collect requirements before discussing commercial terms."
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CONVERSATIONS",
+        "class_name": "Conversation"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Conversation"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
+
