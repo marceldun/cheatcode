@@ -27,6 +27,8 @@
 
 Windows 用户可以直接双击 `一键部署_Windows.bat`。脚本会完成 Cloudflare 登录、部署、自动生成 Webhook 验证字符串，并安全提示输入其余四项账号值。
 
+云环境已经提供 `scripts/deploy_from_environment.sh`：账号所有者把六项必需值保存为环境秘密后，脚本即可无交互部署，秘密只会上传到 Cloudflare 的加密 Secret 存储。
+
 ## 部署命令
 
 ```bash
