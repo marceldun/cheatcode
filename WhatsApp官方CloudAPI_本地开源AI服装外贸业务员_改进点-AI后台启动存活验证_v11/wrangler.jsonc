@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "whatsapp-local-apparel-ai-v6",
+  "main": "cloud/worker.ts",
+  "compatibility_date": "2026-10-15",
+  "vars": {
+    "META_GRAPH_VERSION": "v23.0"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "MESSAGE_QUEUE", "class_name": "MessageQueue" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MessageQueue"] }
+  ],
+  "observability": { "enabled": true }
+}
+
