@@ -57,6 +57,11 @@ try {
     if (-not $workerUrl) { $workerUrl = Read-Host "粘贴上方显示的 https://...workers.dev 地址" }
 
     Write-Host "[6/7] 输入Meta官方Cloud API的三项账号值。输入内容不会显示。"
+    Write-Host "浏览器即将打开Meta应用后台。三个值的位置："
+    Write-Host "  App Secret：App settings → Basic"
+    Write-Host "  Phone Number ID：WhatsApp → API Setup"
+    Write-Host "  长期令牌：Business settings → System users → Generate token"
+    Start-Process "https://developers.facebook.com/apps/"
     $metaToken = Read-Secret "Meta长期访问令牌"
     $metaSecret = Read-Secret "Meta App Secret"
     $phoneId = Read-Secret "Meta Phone Number ID"
@@ -92,7 +97,6 @@ try {
     $result = "Webhook回调地址：$workerUrl/webhook`r`nWebhook验证字符串：$verifyToken`r`n订阅字段：messages"
     Set-Content -LiteralPath (Join-Path $Root "最后一步_Meta_Webhook.txt") -Value $result -Encoding UTF8
     Set-Clipboard $result
-    Start-Process "https://developers.facebook.com/apps/"
     Write-Host "`n本地AI已启动。Meta最后需要粘贴的Webhook信息已复制到剪贴板，并保存到 最后一步_Meta_Webhook.txt。" -ForegroundColor Green
 }
 catch {

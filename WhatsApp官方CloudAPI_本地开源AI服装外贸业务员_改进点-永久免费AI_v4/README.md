@@ -19,6 +19,8 @@
 
 这些步骤用于证明Cloudflare账号和WhatsApp号码属于你，任何软件都不能合法代点。
 
+Meta三项值的位置：`App settings → Basic` 中复制 App Secret；`WhatsApp → API Setup` 中复制 Phone Number ID；`Business settings → System users → Generate token` 生成包含 `whatsapp_business_messaging` 与 `whatsapp_business_management` 权限的长期令牌。安装器会在需要时自动打开Meta应用后台。
+
 ## 费用边界
 
 - 本地开源模型不按消息收费，不需要OpenAI API或其他收费AI平台。
