@@ -1,0 +1,14 @@
+ULJS00143 unlock v5 validation
+source_sha256=9b981ae33bd80aeef63fb219590239fc103fad8bfcb7b23532cd59507b48d0ac
+ppst_sha256=df81232b754de604468b6e332636080d2c1228e57cd69a9309bdfc926104674c
+ini_sha256=72fe3798a19488a7197ba8e9ba279702ecf72d9972637fa9d63515bca256883e
+ppst_header_compressed_size=8883872
+ppst_header_raw_size=40538359
+ppst_zstd_roundtrip=PASS
+ppst_roster_ids=PASS units=99 pilots=119
+ppst_game_ui_predicate=PASS units=99/99 pilots=119/119
+roundtrip_game_ui_predicate=PASS units=99/99 pilots=119/119
+game_function_clean_build=PASS units=99/99 pilots=119/119
+ini_direct_write_count=785
+ini_simulation=PASS units=99/99 pilots=119/119
+emulator_scratch_removed=PASS
