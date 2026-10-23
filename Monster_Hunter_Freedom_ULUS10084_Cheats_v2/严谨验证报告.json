@@ -1,0 +1,97 @@
+{
+  "game": "ULUS-10084",
+  "ppsspp_build": "6fb79ba (v1.20.4 development build)",
+  "town_state_sha256": "fc4ccfa8662c9166fdc3dc21f3f2710815a6f83fb76b18a851928ae2a1dab226",
+  "quest_state_sha256": "6d6f8d8f8021e56519e13671ed2379d689a2ce2b4380e8e251cfa56a52d6e515",
+  "ini_sha256": "e905f1db0332ce6fb9bae7a1f811ab2395378f060c9a2f38125c3c16641d4287",
+  "entry_count": 2,
+  "ppsspp_address_mapping": "code low 28 bits + 0x08800000",
+  "items": {
+    "records": 297,
+    "quantity": 99,
+    "guest_range": "0x098542A8-0x0985474B",
+    "result": "PASS",
+    "runtime_reserialized_state": "PASS: 297 unique records, all quantity 99, final 3 slots cleared"
+  },
+  "pouch": {
+    "slots": 20,
+    "quantity": 99,
+    "guest_start": "0x08F793EC",
+    "result": "PASS",
+    "runtime_reserialized_state": "PASS: all 20 quantity bytes equal 99"
+  },
+  "equipment": {
+    "capacity": 300,
+    "guest_range": "0x09853BA0-0x098542A7",
+    "pages": [
+      {
+        "page": "SELECT+UP weapons 1-300",
+        "count": 300,
+        "first": 1,
+        "last": 300,
+        "category": 5
+      },
+      {
+        "page": "SELECT+RIGHT weapons 301-438",
+        "count": 138,
+        "first": 301,
+        "last": 438,
+        "category": 5
+      },
+      {
+        "page": "SELECT+DOWN head armor 1-296",
+        "count": 296,
+        "first": 1,
+        "last": 296,
+        "category": 6
+      },
+      {
+        "page": "SELECT+LEFT body armor 1-296",
+        "count": 296,
+        "first": 1,
+        "last": 296,
+        "category": 7
+      },
+      {
+        "page": "SELECT+TRIANGLE arm armor 1-296",
+        "count": 296,
+        "first": 1,
+        "last": 296,
+        "category": 8
+      },
+      {
+        "page": "SELECT+CIRCLE waist armor 1-296",
+        "count": 296,
+        "first": 1,
+        "last": 296,
+        "category": 9
+      },
+      {
+        "page": "SELECT+SQUARE leg armor 1-296",
+        "count": 296,
+        "first": 1,
+        "last": 296,
+        "category": 10
+      }
+    ],
+    "boundary_check": "PASS",
+    "runtime_pages": {
+      "no_button_unchanged": "PASS",
+      "weapons_1_300": "PASS",
+      "weapons_301_438": "PASS",
+      "head_1_296": "PASS",
+      "body_1_296": "PASS",
+      "arms_1_296": "PASS",
+      "waist_1_296": "PASS",
+      "legs_1_296": "PASS"
+    }
+  },
+  "quest": {
+    "joker": "START 0x0008",
+    "write": "32-bit 1 -> guest 0x09858C60",
+    "expected_visible_result": "Gathering Quest Completed!",
+    "runtime_result": "PASS: exact final INI executed in PPSSPP; START produced visible Gathering Quest Completed!",
+    "screenshot_sha256": "0ccc04e421ee60a56c7628614c39c000b303b434a762cb0455bc4d86bf58b7f9"
+  },
+  "overall": "PASS"
+}
