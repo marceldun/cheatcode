@@ -1,0 +1,157 @@
+{
+  "game": "ULUS-10084",
+  "ppsspp_build": "6fb79ba (v1.20.4 development build)",
+  "town_state_sha256": "fc4ccfa8662c9166fdc3dc21f3f2710815a6f83fb76b18a851928ae2a1dab226",
+  "quest_state_sha256": "6d6f8d8f8021e56519e13671ed2379d689a2ce2b4380e8e251cfa56a52d6e515",
+  "ini_sha256": "e808c4408e1452c99da96f01463f3fd513990aac471beb674f6fa00d260367c7",
+  "entry_count": 2,
+  "ppsspp_address_mapping": "code low 28 bits + 0x08800000",
+  "items": {
+    "records": 297,
+    "quantity": 99,
+    "guest_range": "0x098542A8-0x0985474B",
+    "result": "PASS",
+    "runtime_reserialized_state": "PASS: 297 unique valid items, all quantity 99"
+  },
+  "pouch": {
+    "slots": 20,
+    "quantity": 99,
+    "guest_start": "0x08F793EC",
+    "result": "PASS",
+    "runtime_reserialized_state": "PASS: 20 quantity bytes equal 99"
+  },
+  "equipment": {
+    "capacity": 300,
+    "guest_range": "0x09853BA0-0x098542A7",
+    "pages": [
+      {
+        "page": "SELECT+UP weapons 1-300",
+        "count": 300,
+        "first": 1,
+        "last": 300,
+        "category": 5
+      },
+      {
+        "page": "SELECT+RIGHT weapons 301-438",
+        "count": 138,
+        "first": 301,
+        "last": 438,
+        "category": 5
+      },
+      {
+        "page": "SELECT+DOWN head armor 1-296",
+        "count": 296,
+        "first": 1,
+        "last": 296,
+        "category": 6
+      },
+      {
+        "page": "SELECT+LEFT body armor 1-281",
+        "count": 281,
+        "first": 1,
+        "last": 281,
+        "category": 7
+      },
+      {
+        "page": "SELECT+TRIANGLE arm armor 1-275",
+        "count": 275,
+        "first": 1,
+        "last": 275,
+        "category": 8
+      },
+      {
+        "page": "SELECT+CIRCLE waist armor 1-253",
+        "count": 253,
+        "first": 1,
+        "last": 253,
+        "category": 9
+      },
+      {
+        "page": "SELECT+SQUARE leg armor 1-252",
+        "count": 252,
+        "first": 1,
+        "last": 252,
+        "category": 10
+      }
+    ],
+    "boundary_check": "PASS",
+    "actual_game_name_tables": [
+      {
+        "category": "weapons",
+        "valid_ID_range": "1-438",
+        "valid_count": 438,
+        "table_guest": "0x0893A1F4",
+        "first_name": "Iron Sword",
+        "last_name": "Wolf Tessen",
+        "all_name_offsets": "PASS"
+      },
+      {
+        "category": "head",
+        "valid_ID_range": "1-296",
+        "valid_count": 296,
+        "table_guest": "0x08946CFE",
+        "first_name": "Leather Helm",
+        "last_name": "Basarios Cap U",
+        "all_name_offsets": "PASS"
+      },
+      {
+        "category": "body",
+        "valid_ID_range": "1-281",
+        "valid_count": 281,
+        "table_guest": "0x0894DFF6",
+        "first_name": "Leather Armor",
+        "last_name": "Basarios Vest U",
+        "all_name_offsets": "PASS"
+      },
+      {
+        "category": "arms",
+        "valid_ID_range": "1-275",
+        "valid_count": 275,
+        "table_guest": "0x08954D45",
+        "first_name": "Leather Vambraces",
+        "last_name": "Basarios Guards U",
+        "all_name_offsets": "PASS"
+      },
+      {
+        "category": "waist",
+        "valid_ID_range": "1-253",
+        "valid_count": 253,
+        "table_guest": "0x0895BBB9",
+        "first_name": "Leather Belt",
+        "last_name": "Basarios Coat U",
+        "all_name_offsets": "PASS"
+      },
+      {
+        "category": "legs",
+        "valid_ID_range": "1-252",
+        "valid_count": 252,
+        "table_guest": "0x08961E16",
+        "first_name": "Green Pants",
+        "last_name": "Basarios Leggings U",
+        "all_name_offsets": "PASS"
+      }
+    ],
+    "total_valid_equipment": 1795,
+    "game_box_capacity": 300,
+    "structural_note": "1795 valid equipment records cannot coexist in the game fixed 300-slot box; all are provided through seven persistent pages.",
+    "runtime_pages": {
+      "automatic_weapon_1_300": "PASS",
+      "weapons_301_438_latched": "PASS",
+      "head_1_296_latched": "PASS",
+      "body_1_281_latched": "PASS",
+      "arms_1_275_latched": "PASS",
+      "waist_1_253_latched": "PASS",
+      "legs_1_252_latched": "PASS"
+    },
+    "button_release_persistence": "PASS: selector retained after the press ended and in reserialized PPST"
+  },
+  "quest": {
+    "joker": "START 0x0008",
+    "write": "32-bit 1 -> guest 0x09858C60",
+    "expected_visible_result": "Gathering Quest Completed!",
+    "runtime_result": "PASS: exact v3 INI + START produced visible Gathering Quest Completed!",
+    "screenshot_sha256": "0ccc04e421ee60a56c7628614c39c000b303b434a762cb0455bc4d86bf58b7f9"
+  },
+  "overall": "PASS",
+  "version": "v3 improvement: exact valid equipment IDs + persistent page latch"
+}
