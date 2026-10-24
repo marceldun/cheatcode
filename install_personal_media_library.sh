@@ -9,8 +9,8 @@ if [ -n "$need" ]; then
   elif command -v yum >/dev/null 2>&1; then yum install -y curl unzip openssl ca-certificates;
   else echo "无法自动安装curl、unzip、openssl。"; exit 1; fi
 fi
-url="https://raw.githubusercontent.com/marceldun/cheatcode/main/Personal_Media_Library_Auto_Cover_v1.zip"
-expected="92dee80001716c666bf47abb45409cec82cc9e6da4c8e7b8bc347c57238496bf"
+url="https://raw.githubusercontent.com/marceldun/cheatcode/main/Personal_Media_Library_Auto_IP_v2.zip"
+expected="c59f61d940d3456b997efe86433b47c548433c28764a4cd82e217c1e03d77893"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 echo "正在下载并校验完整安装包……"
 curl -fL --retry 5 --retry-all-errors --connect-timeout 15 "$url" -o "$tmp/package.zip"
