@@ -16,10 +16,10 @@ if [ -n "$need" ];then
  elif command -v yum>/dev/null;then yum install -y curl unzip openssl ca-certificates python3;
  else echo "无法自动安装基础组件。";exit 1;fi
 fi
-url="https://raw.githubusercontent.com/marceldun/cheatcode/main/Personal_Media_Library_Native_Low_Disk_v3.zip"
-expected="13ffc14031bf269431978a2827e4a2beb42b01ec428a81c8a55914970fa5088d"
+url="https://raw.githubusercontent.com/marceldun/cheatcode/main/Personal_Media_Library_SelfCopy_PortFix_v4.zip"
+expected="3d209012eb5333069686bd026dd94db5a7daf2d7c6046c1b37c939a3a64c00a5"
 tmp="$(mktemp -d)";trap 'rm -rf "$tmp"' EXIT
-echo "下载超轻量v3完整包（约116KB）……";curl -fL --retry 5 --retry-all-errors --connect-timeout 15 "$url" -o "$tmp/package.zip"
+echo "下载完整v4（约116KB）……";curl -fL --retry 5 --retry-all-errors --connect-timeout 15 "$url" -o "$tmp/package.zip"
 echo "$expected  $tmp/package.zip"|sha256sum -c -
 mkdir "$tmp/unpack";unzip -q "$tmp/package.zip" -d "$tmp/unpack";src="$(find "$tmp/unpack" -mindepth 1 -maxdepth 1 -type d|head -n1)";[ -n "$src" ]||{ echo "安装包结构错误。";exit 1; }
 target=/opt/personal-media-library;oldenv="";if [ -f "$target/.env" ];then oldenv="$tmp/existing.env";cp "$target/.env" "$oldenv";fi
