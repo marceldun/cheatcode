@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 if [ "$(id -u)" -ne 0 ];then echo "请用root用户运行，或使用发布的一键命令。";exit 1;fi
-echo "[预处理] 清理v2失败产生的Docker缓存，释放磁盘……"
+echo "[预处理] 停止旧版循环失败服务并清理Docker缓存……"
+systemctl stop personal-media-library.service caddy-library.service >/dev/null 2>&1||true
 if command -v docker >/dev/null 2>&1;then
  ids="$(docker ps -aq --filter label=com.docker.compose.project=media-library 2>/dev/null||true)";[ -z "$ids" ]||docker rm -f $ids >/dev/null 2>&1||true
  docker builder prune -af >/dev/null 2>&1||true
