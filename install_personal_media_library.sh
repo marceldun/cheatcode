@@ -8,6 +8,7 @@ if command -v docker >/dev/null 2>&1;then
  docker image rm media-library-app personal-media-library:test node:24-alpine caddy:2.10-alpine >/dev/null 2>&1||true
  docker image prune -f >/dev/null 2>&1||true
 fi
+echo "Docker失败缓存清理完成。"
 need="";for c in curl unzip openssl python3;do command -v "$c">/dev/null 2>&1||need=yes;done
 if [ -n "$need" ];then
  if command -v apt-get>/dev/null;then apt-get update -y&&DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip openssl ca-certificates python3;
