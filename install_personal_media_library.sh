@@ -17,10 +17,10 @@ if [ -n "$need" ];then
  elif command -v yum>/dev/null;then yum install -y curl unzip openssl ca-certificates python3;
  else echo "无法自动安装基础组件。";exit 1;fi
 fi
-url="https://raw.githubusercontent.com/marceldun/cheatcode/main/Personal_Media_Library_Gemini_Model_AutoDiscovery_v8.zip"
-expected="90e7688aeb25cd37f11dcfb0e1b8cf316979448310e93a98d701e9c15bf88f0f"
+url="https://raw.githubusercontent.com/marceldun/cheatcode/main/Personal_Media_Library_Google_Images_Admin_Requirements_v9.zip"
+expected="99e2ac2067c07bc629cc4deab621354e2ba5a56947f178bba2b6b12992e0120d"
 tmp="$(mktemp -d)";trap 'rm -rf "$tmp"' EXIT
-echo "下载完整v8（约120KB）……";curl -fL --retry 5 --retry-all-errors --connect-timeout 15 "$url" -o "$tmp/package.zip"
+echo "下载完整v9（约125KB）……";curl -fL --retry 5 --retry-all-errors --connect-timeout 15 "$url" -o "$tmp/package.zip"
 echo "$expected  $tmp/package.zip"|sha256sum -c -
 mkdir "$tmp/unpack";unzip -q "$tmp/package.zip" -d "$tmp/unpack";src="$(find "$tmp/unpack" -mindepth 1 -maxdepth 1 -type d|head -n1)";[ -n "$src" ]||{ echo "安装包结构错误。";exit 1; }
 target=/opt/personal-media-library;oldenv="";if [ -f "$target/.env" ];then oldenv="$tmp/existing.env";cp "$target/.env" "$oldenv";fi
