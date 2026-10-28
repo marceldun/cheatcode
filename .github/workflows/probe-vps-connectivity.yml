@@ -1,0 +1,22 @@
+name: Temporary VPS connectivity probe
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/probe-vps-connectivity.yml
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe 38.126.114.219 from overseas runner
+        shell: bash
+        run: |
+          set +e
+          for port in 22 80 443 8080 18080 30080 39080; do
+            if timeout 8 bash -c "</dev/tcp/38.126.114.219/$port" 2>/dev/null; then
+              echo "PORT_${port}=OPEN"
+            else
+              echo "PORT_${port}=CLOSED_OR_UNREACHABLE"
+            fi
+          done
+          curl -v --connect-timeout 8 --max-time 12 http://38.126.114.219/ 2>&1 | tail -n 30
