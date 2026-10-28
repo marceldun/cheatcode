@@ -5,18 +5,23 @@ on:
     paths:
       - .github/workflows/probe-vps-connectivity.yml
 jobs:
-  probe:
+  ssh-port-22-open:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     steps:
-      - name: Probe 38.126.114.219 from overseas runner
-        shell: bash
-        run: |
-          set +e
-          for port in 22 80 443 8080 18080 30080 39080; do
-            if timeout 8 bash -c "</dev/tcp/38.126.114.219/$port" 2>/dev/null; then
-              echo "PORT_${port}=OPEN"
-            else
-              echo "PORT_${port}=CLOSED_OR_UNREACHABLE"
-            fi
-          done
-          curl -v --connect-timeout 8 --max-time 12 http://38.126.114.219/ 2>&1 | tail -n 30
+      - run: timeout 12 bash -c '</dev/tcp/38.126.114.219/22'
+  web-port-80-open:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: timeout 12 bash -c '</dev/tcp/38.126.114.219/80'
+  https-port-443-open:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: timeout 12 bash -c '</dev/tcp/38.126.114.219/443'
+  alternate-port-8080-open:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: timeout 12 bash -c '</dev/tcp/38.126.114.219/8080'
