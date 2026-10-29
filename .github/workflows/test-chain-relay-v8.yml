@@ -75,7 +75,7 @@ jobs:
           echo "multi_channel_launcher=0" >> "$report"
           controller_rc=$(cat /tmp/v8-controller.rc)
           echo "one_command_background_controller=$controller_rc" >> "$report"; [ "$controller_rc" -eq 0 ] || failed=1
-          [ "$(cat /root/chain-v8-install.done)" -eq 0 ]
+          [ "$(sudo cat /root/chain-v8-install.done)" -eq 0 ]
           rc=$?; echo "persistent_systemd_worker_completed=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
           for service in chain-v8-test-exit chain-v8-test-relay-node1 chain-v8-test-relay-node2; do
             sudo systemctl is-active --quiet "$service"
@@ -102,11 +102,11 @@ jobs:
           echo "first_relay_stopped_client_auto_uses_second=$success" >> "$report"; [ "$success" -eq 0 ] || failed=1
           sudo grep -q '^existing-service-must-remain$' /etc/sing-box/original-marker
           rc=$?; echo "existing_files_preserved=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
-          grep '真实联网通过' /root/chain-v8-install.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' >> "$report" || true
+          sudo grep '真实联网通过' /root/chain-v8-install.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' >> "$report" || true
           if [ "$failed" -eq 0 ]; then echo result=PASS >> "$report"; else
             echo result=FAIL >> "$report"
             echo controller_log_tail: >> "$report"
-            tail -150 /root/chain-v8-install.log >> "$report"
+            sudo tail -150 /root/chain-v8-install.log >> "$report"
             echo client_log: >> "$report"; cat /tmp/v8-client.log >> "$report"
           fi
       - name: Publish machine-readable report
