@@ -1,0 +1,14 @@
+bash_syntax=0
+shellcheck=0
+tcp443_conflict_real_install=0
+tcp_conflict_keeps_hy2_udp443=0
+reality_auto_avoids_tcp443=0
+tcp_conflict_service_active=0
+[成功] HY2 真实联网通过（HTTP 204）；本机完整加密吞吐：1927.8 Mbps
+tcp_udp443_conflict_tiny_obfs_install=0
+hy2_auto_avoids_udp443=0
+reality_auto_avoids_tcp443_second_run=0
+official_config_check=0
+both_conflicts_service_active=0
+tiny_obfs_profile=0
+result=PASS
