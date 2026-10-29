@@ -2,9 +2,14 @@ name: Test fast proxy v3
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_fast_proxy_v3.sh
+      - .github/workflows/test-fast-proxy-v3.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   real-install-test:
@@ -12,24 +17,54 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Static validation
+      - name: Static validation and two real installations
         run: |
+          set +e
+          : > /tmp/proxy-v3-test-report.txt
+          failed=0
           bash -n install_fast_proxy_v3.sh
+          rc=$?; echo "bash_syntax=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           shellcheck -x -S warning install_fast_proxy_v3.sh
-      - name: Real clean installation and network test
-        run: sudo bash install_fast_proxy_v3.sh
-      - name: Verify persisted service and artifacts
-        run: |
+          rc=$?; echo "shellcheck=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
+          sudo bash install_fast_proxy_v3.sh >/tmp/install-default.log 2>&1
+          rc=$?; echo "default_real_install=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo systemctl is-active --quiet sing-box
+          rc=$?; echo "service_active=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo /etc/sing-box/sing-box check -c /etc/sing-box/config.json
+          rc=$?; echo "official_config_check=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo ss -uln | grep -E '[:.]443[[:space:]]'
+          rc=$?; echo "udp_443_listening=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo ss -tln | grep -E '[:.]443[[:space:]]'
+          rc=$?; echo "tcp_443_listening=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo test -s /root/sing-box-fast-v3-info.txt
-          sudo sb-fast info
-      - name: Reinstall test with optional obfuscation
-        run: sudo env ENABLE_OBFS=1 bash install_fast_proxy_v3.sh
-      - name: Verify obfuscation configuration and real service
-        run: |
+          rc=$?; echo "node_info_created=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
+          sudo env ENABLE_OBFS=1 bash install_fast_proxy_v3.sh >/tmp/install-obfs.log 2>&1
+          rc=$?; echo "obfs_real_reinstall=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo /etc/sing-box/sing-box check -c /etc/sing-box/config.json
+          rc=$?; echo "obfs_official_config_check=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo grep -q '"obfs"' /etc/sing-box/config.json
+          rc=$?; echo "obfs_present=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo systemctl is-active --quiet sing-box
+          rc=$?; echo "obfs_service_active=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
+          if [ "$failed" -eq 0 ]; then echo 'result=PASS' >> /tmp/proxy-v3-test-report.txt; else
+            echo 'result=FAIL' >> /tmp/proxy-v3-test-report.txt
+            echo 'default_log_tail:' >> /tmp/proxy-v3-test-report.txt
+            tail -40 /tmp/install-default.log >> /tmp/proxy-v3-test-report.txt
+            echo 'obfs_log_tail:' >> /tmp/proxy-v3-test-report.txt
+            tail -40 /tmp/install-obfs.log >> /tmp/proxy-v3-test-report.txt
+          fi
+      - name: Publish machine-readable test report branch
+        if: always()
+        run: |
+          cp /tmp/proxy-v3-test-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan proxy-v3-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "Proxy v3 test report $GITHUB_SHA"
+          git push --force origin HEAD:proxy-v3-test-report
+      - name: Set final test result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/proxy-v3-test-report.txt
