@@ -1,0 +1,17 @@
+multi_channel_launcher=0
+one_command_background_controller=0
+persistent_systemd_worker_completed=0
+chain-v8-test-exit_active=0
+chain-v8-test-relay-node1_active=0
+chain-v8-test-relay-node2_active=0
+config_chain-v8-test-exit=0
+config_chain-v8-test-relay-node1=0
+config_chain-v8-test-relay-node2=0
+config_root=0
+client_has_two_relays_and_continuous_urltest=0
+first_relay_stopped_client_auto_uses_second=0
+existing_files_preserved=0
+[成功] Domainesia 出口 真实联网通过：HTTP 204，首字节 0.051774s，下载 258.9 Mbps
+[成功] 高速VPS→Domainesia 两跳链路 真实联网通过：HTTP 204，首字节 0.055580s，下载 259.5 Mbps
+[成功] 高速VPS→Domainesia 两跳链路 真实联网通过：HTTP 204，首字节 0.055027s，下载 271.7 Mbps
+result=PASS
