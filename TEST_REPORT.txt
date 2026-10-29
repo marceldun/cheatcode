@@ -1,0 +1,14 @@
+one_command_controller=0
+exit_service_active=0
+relay_service_active=0
+exit_official_config_check=0
+relay_official_config_check=0
+exit_ipv4_only_dns=0
+exit_direct_and_relay_users=0
+relay_forces_domainesia_exit=0
+relay_occupied_ports_auto_avoided=0
+existing_relay_files_preserved=0
+full_two_hop_real_network=0
+[成功] Domainesia 出口 真实联网通过：HTTP 204，首字节 0.029682s，下载 385.7 Mbps
+[成功] 高速VPS→Domainesia 两跳链路 真实联网通过：HTTP 204，首字节 0.031200s，下载 384.7 Mbps
+result=PASS
