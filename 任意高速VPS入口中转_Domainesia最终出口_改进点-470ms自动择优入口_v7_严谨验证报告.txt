@@ -1,0 +1,37 @@
+v7 自动化验证报告
+验证日期：2026-10-29
+测试对象：仓库内 install_chain_relay_v7.sh 的完整一键控制器路径
+
+测试结果
+multi_channel_launcher=0
+one_command_controller=0
+unreachable_candidate_skipped_and_fastest_selected=0
+exit_service_active=0
+relay_service_active=0
+exit_official_config_check=0
+relay_official_config_check=0
+exit_ipv4_only_dns=0
+exit_direct_and_relay_users=0
+relay_forces_domainesia_exit=0
+relay_occupied_ports_auto_avoided=0
+existing_relay_files_preserved=0
+full_two_hop_real_network=0
+Domainesia出口：HTTP 204，首字节0.055271秒，下载531.7 Mbps
+高速VPS→Domainesia完整两跳：HTTP 204，首字节0.055143秒，下载548.0 Mbps
+result=PASS
+
+测试覆盖
+- GitHub Raw/镜像多通道启动器下载并逐字节比对
+- Bash语法与ShellCheck
+- 一个不可达候选和一个可达候选的自动筛选
+- 真实SSH root密码自动部署
+- 出口与入口两个独立systemd服务
+- UDP/TCP端口冲突自动避让
+- sing-box官方配置检查
+- IPv4优先DNS
+- 所有流量强制经Domainesia最终出口
+- 入口VPS已有文件保留
+- 真实HTTP与8MiB下载测试
+
+限制
+CI验证的是脚本、服务、协议和真实公网联网，不代表用户所在地到美国/沙特/印度尼西亚的物理线路也能达到CI速度。实际部署会再次进行真实完整链路测试并显示结果。

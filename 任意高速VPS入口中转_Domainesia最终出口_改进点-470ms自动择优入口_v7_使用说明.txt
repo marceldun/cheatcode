@@ -1,0 +1,25 @@
+任意高速VPS入口中转 → Domainesia最终出口
+改进点：470ms线路自动择优入口 v7
+
+作用
+1. 在Domainesia服务器运行一次。
+2. 可一次输入美国、沙特等多个已有高速VPS，脚本从Domainesia实测每台SSH建连中位延迟。
+3. 自动跳过不可达VPS，只在最低延迟的可达入口部署。
+4. 客户端连接高速VPS，所有流量再由Domainesia出网；网站看到的最终出口仍是Domainesia。
+5. v7使用独立目录和服务名，保留v6以及入口VPS原有代理服务。
+
+唯一安装命令（整行复制到Domainesia的Xshell执行）
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_chain_relay_v7.sh';f=/tmp/install_chain_relay_v7.sh;rm -f "$f";for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u" 'https://github.com/marceldun/cheatcode/raw/refs/heads/main/install_chain_relay_v7.sh';do curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f"&&[ -s "$f" ]&&break;done;[ -s "$f" ]&&bash "$f"||{ echo '所有下载通道均失败，未执行空脚本';exit 1;}
+
+你只需输入
+1. 出现“输入高速 VPS”时，一行输入已有入口，例如：
+   root@美国VPS公网IP,root@沙特VPS公网IP
+   只有一台就只填一台。
+2. 脚本选中最低延迟入口后，输入该VPS的root密码。密码输入时屏幕不显示字符，这是正常现象；输完按回车。
+3. 完成后复制屏幕最后“NekoRay首选导入”下面的一整行链接，导入NekoRay。
+
+严谨边界
+- v7能保证从你提供且SSH可达的候选中，按Domainesia到入口的实测中位建连延迟自动选择最低者。
+- 470ms如果来自中国运营商绕路、入口VPS地理距离或物理光纤距离，任何协议和内核参数都不能保证变成47ms。脚本会显示真实首字节与下载速度，不伪造“10倍”。
+- 美国/沙特入口未必比香港、日本、新加坡入口延迟低；候选入口距离你和印度尼西亚越近，通常越快。
+- 软件与脚本不收费；已有VPS流量是否计费由VPS套餐决定。
