@@ -24,7 +24,7 @@ jobs:
           failed=0
           bash -n install_fast_proxy_v3.sh
           rc=$?; echo "bash_syntax=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
-          shellcheck -x -S warning install_fast_proxy_v3.sh
+          shellcheck -x -S warning install_fast_proxy_v3.sh >/tmp/shellcheck.log 2>&1
           rc=$?; echo "shellcheck=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo bash install_fast_proxy_v3.sh >/tmp/install-default.log 2>&1
           rc=$?; echo "default_real_install=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
@@ -48,6 +48,8 @@ jobs:
           rc=$?; echo "obfs_service_active=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           if [ "$failed" -eq 0 ]; then echo 'result=PASS' >> /tmp/proxy-v3-test-report.txt; else
             echo 'result=FAIL' >> /tmp/proxy-v3-test-report.txt
+            echo 'shellcheck_log:' >> /tmp/proxy-v3-test-report.txt
+            cat /tmp/shellcheck.log >> /tmp/proxy-v3-test-report.txt
             echo 'default_log_tail:' >> /tmp/proxy-v3-test-report.txt
             tail -40 /tmp/install-default.log >> /tmp/proxy-v3-test-report.txt
             echo 'obfs_log_tail:' >> /tmp/proxy-v3-test-report.txt

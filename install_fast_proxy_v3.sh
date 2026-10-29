@@ -77,7 +77,7 @@ mkdir -p "$WORK_DIR" "$WORK_DIR/backup"
 chmod 700 "$WORK_DIR"
 PREFIXES=("" "https://ghfast.top/" "https://gh-proxy.com/" "https://ghproxy.net/")
 fetch_text(){ local url=$1 p; for p in "${PREFIXES[@]}"; do curl -A 'sb-fast-v3' -fsSL --connect-timeout 8 --max-time 25 "${p}${url}" 2>/dev/null && return 0; done; return 1; }
-download(){ local url=$1 dst=$2 p part="${dst}.part"; for p in "${PREFIXES[@]}"; do
+download(){ local url=$1 dst=$2 p part; part="${dst}.part"; for p in "${PREFIXES[@]}"; do
   if curl -A 'sb-fast-v3' -fL --connect-timeout 10 --max-time 600 --retry 3 --retry-delay 2 -C - -o "$part" "${p}${url}" 2>/dev/null && [ -s "$part" ]; then mv -f "$part" "$dst"; return 0; fi
 done; return 1; }
 SB_VERSION="${SB_VERSION:-}"
