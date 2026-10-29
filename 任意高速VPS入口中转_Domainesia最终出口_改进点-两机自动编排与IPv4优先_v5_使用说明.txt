@@ -1,0 +1,23 @@
+任意高速 VPS 入口中转 → Domainesia 最终出口 v5
+=================================================
+
+只在 Domainesia（202.155.14.177）执行这一行：
+
+bash <(curl -fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_chain_relay_v5.sh)
+
+接下来只需：
+1. 输入任意高速 VPS：root@公网IP
+2. 如果没有配置 SSH 密钥，隐藏输入一次该高速 VPS 的 root 密码。
+
+脚本自动完成：
+- Domainesia 配置为最终出口，并强制出口 DNS 使用 IPv4，避免无效 IPv6 等待。
+- 高速 VPS 使用独立目录和独立 systemd 服务作为入口，不覆盖其原有代理。
+- 自动配置 SSH、证书、密钥、端口避让、防火墙、BBR/FQ、低内存 QUIC 缓冲和 UDP GRO。
+- 自动验证 Domainesia 出口联网。
+- 自动验证“高速 VPS → Domainesia → 网站”的完整两跳链路。
+- 最后直接输出 NekoRay 可导入链接。
+- 网站看到的最终出口 IP 仍然是 Domainesia。
+
+软件完全开源免费；会消耗两台现有 VPS 套餐内的流量。
+v4 的脚本、压缩包、说明和验证报告均继续保留。
+
