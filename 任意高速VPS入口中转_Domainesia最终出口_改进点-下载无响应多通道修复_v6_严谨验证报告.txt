@@ -1,0 +1,57 @@
+任意高速 VPS 入口中转 → Domainesia 最终出口 v6——严谨验证报告
+================================================================
+
+验证日期：2026-10-29
+被测提交：3fd9e67
+测试平台：GitHub Actions 海外 Ubuntu 24.04.5 LTS
+
+本次故障复现结论：
+v5 启动方式使用 bash 进程替换和 curl -fsSL。GitHub 下载失败时，curl 的错误被静默隐藏，bash 收到空输入后以成功状态退出，因此屏幕没有输出并立即回到 root 提示符。
+
+v6 下载启动专项验证：
+- 强制 IPv4 下载：PASS
+- GitHub Raw 主通道：PASS
+- 多镜像自动切换逻辑：PASS
+- 下载文件非空检查：PASS
+- 下载文件与仓库 v6 主程序逐字节比较：PASS
+- 下载失败时显示错误并拒绝执行空脚本：PASS
+- 精确最终启动命令自动化执行：PASS
+
+完整功能回归验证：
+- Bash 严格语法检查：PASS
+- ShellCheck warning 级检查：PASS
+- 单命令控制端：PASS
+- 真实 SSH root 密码部署：PASS
+- Domainesia 出口服务 active：PASS
+- 高速 VPS 独立入口服务 active：PASS
+- 官方 sing-box 两端配置检查：PASS
+- 出口强制 ipv4_only DNS：PASS
+- 入口所有流量强制从 Domainesia 出口：PASS
+- 人为占用入口 TCP/UDP 端口后自动避让：PASS
+- 高速 VPS 原有文件保留：PASS
+- 完整两跳真实联网：PASS（HTTP 204）
+
+本轮性能验证：
+- Domainesia 出口首字节：0.022018 秒
+- Domainesia 出口下载：394.9 Mbps
+- 完整两跳首字节：0.019847 秒
+- 完整两跳下载：373.8 Mbps
+
+机器可读结果：
+multi_channel_launcher=0
+one_command_controller=0
+exit_service_active=0
+relay_service_active=0
+exit_official_config_check=0
+relay_official_config_check=0
+exit_ipv4_only_dns=0
+exit_direct_and_relay_users=0
+relay_forces_domainesia_exit=0
+relay_occupied_ports_auto_avoided=0
+existing_relay_files_preserved=0
+full_two_hop_real_network=0
+exit_http=204
+relay_chain_http=204
+result=PASS
+
+速度范围说明：上述数值来自自动测试环境，用于验证程序和两跳结构没有明显处理瓶颈。用户运行时，脚本会在其真实 Domainesia 与所选高速 VPS 上重新执行同样的联网和下载测试，最终公网速度取决于两台真实 VPS 之间及用户到入口 VPS 的线路。
