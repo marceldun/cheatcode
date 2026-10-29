@@ -38,7 +38,8 @@ jobs:
           rc=$?; echo "tcp_443_listening=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo test -s /root/sing-box-fast-v3-info.txt
           rc=$?; echo "node_info_created=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
-          sudo env ENABLE_OBFS=1 bash install_fast_proxy_v3.sh >/tmp/install-obfs.log 2>&1
+          grep '本机完整加密吞吐' /tmp/install-default.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' >> /tmp/proxy-v3-test-report.txt || true
+          sudo env ENABLE_OBFS=1 MEM_KB_OVERRIDE=262144 bash install_fast_proxy_v3.sh >/tmp/install-obfs.log 2>&1
           rc=$?; echo "obfs_real_reinstall=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo /etc/sing-box/sing-box check -c /etc/sing-box/config.json
           rc=$?; echo "obfs_official_config_check=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
@@ -46,6 +47,8 @@ jobs:
           rc=$?; echo "obfs_present=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           sudo systemctl is-active --quiet sing-box
           rc=$?; echo "obfs_service_active=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
+          grep '自动档位：tiny' /tmp/install-obfs.log >/dev/null
+          rc=$?; echo "tiny_memory_profile=$rc" >> /tmp/proxy-v3-test-report.txt; [ "$rc" -eq 0 ] || failed=1
           if [ "$failed" -eq 0 ]; then echo 'result=PASS' >> /tmp/proxy-v3-test-report.txt; else
             echo 'result=FAIL' >> /tmp/proxy-v3-test-report.txt
             echo 'shellcheck_log:' >> /tmp/proxy-v3-test-report.txt

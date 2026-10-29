@@ -44,7 +44,7 @@ case "${ID:-}" in
   alpine) PM=apk ;;
   *) command -v apt-get >/dev/null && PM=apt || { command -v apk >/dev/null && PM=apk || PM=rpm; } ;;
 esac
-MEM_KB="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
+MEM_KB="${MEM_KB_OVERRIDE:-$(awk '/MemTotal/{print $2}' /proc/meminfo)}"
 CPU_COUNT="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
 if [ "$MEM_KB" -le 524288 ]; then
   PROFILE=tiny; SOCKBUF=8388608; BACKLOG=2048
