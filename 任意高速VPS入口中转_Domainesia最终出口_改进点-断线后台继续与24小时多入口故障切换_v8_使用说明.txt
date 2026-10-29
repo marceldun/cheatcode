@@ -1,0 +1,41 @@
+任意高速VPS入口中转 → Domainesia最终出口
+改进点：断线后台继续与24小时多入口故障切换 v8
+
+本版解决的问题
+1. v7在重启Domainesia代理时，使用127.0.0.1:2080代理连接的Xshell也会断开，前台脚本随之停止。
+2. v8先逐台收集全部VPS资料，再由systemd后台安装；Xshell断开不会中止。
+3. 不再要求逗号输入：先问VPS数量，再逐台询问IP、SSH账号、端口和隐藏密码。
+4. 所有入口均部署，不只在安装时选一台。
+5. 生成sing-box/NekoRay自定义配置，每1分钟从用户电脑真实测试所有入口；自动选择最低延迟入口，当前入口过期或失效时切换到其他可用入口。
+6. v8使用独立入口目录和服务名，保留v7、v6及更早版本文件。
+7. 安装结束或失败后自动删除后台临时密码文件。
+
+唯一安装命令
+在Domainesia服务器的Xshell复制执行完整一行：
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_chain_relay_v8.sh';f=/tmp/install_chain_relay_v8.sh;rm -f "$f";for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u" 'https://github.com/marceldun/cheatcode/raw/refs/heads/main/install_chain_relay_v8.sh';do curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f"&&[ -s "$f" ]&&break;done;[ -s "$f" ]&&bash "$f"||{ echo '所有下载通道均失败，未执行空脚本';exit 1;}
+
+脚本会依次询问
+- 要绑定多少台高速VPS：输入1到10。
+- 每台的公网IP或域名。
+- SSH账号：直接回车默认root。账号必须能直接取得root权限。
+- SSH端口：直接回车默认22。
+- SSH密码：输入时屏幕不显示字符，输完按回车；已配置root密钥可直接回车。
+
+Xshell断线后的处理
+不需要重新执行安装命令。后台任务会继续。
+重新连接Domainesia后查看结果：
+cat /root/chain-v8-install.log
+成功标记：
+cat /root/chain-v8-install.done
+显示0代表全部完成。
+
+启用24小时自动切换（只做一次）
+安装完成后，配置文件位于：
+/root/NekoRay-v8-24小时自动择优.json
+使用Xshell自带的SFTP文件窗格把这个文件下载到Windows，然后在NekoRay中新增“自定义配置/Custom Config”并选择该文件，启动它。
+该配置在NekoRay运行期间每1分钟从你的电脑实测所有入口，因此测到的是完整用户线路，不是VPS机房内部的假延迟。第一入口失效时会中断旧连接并改用其他可用入口。
+
+严谨边界
+- 物理距离和运营商绕路造成的470ms不能由协议保证变成47ms。v8持续选择已有入口中实测最低延迟的可用节点，不伪造10倍结果。
+- HY2已经是高丢包线路适用的QUIC协议。v8启用BBR/fq、内存自适应QUIC缓冲、UDP GRO、IPv4优先和客户端持续urltest；继续盲目增大带宽参数可能增加丢包和延迟，因此不写死虚假“最高值”。
+- 如果所有已绑定VPS同时到期，系统没有可连接的公网入口，任何软件都无法凭空联网；至少保留一台有效入口。

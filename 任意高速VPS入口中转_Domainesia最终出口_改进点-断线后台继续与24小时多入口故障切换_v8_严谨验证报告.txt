@@ -1,0 +1,38 @@
+v8自动化验证报告
+验证日期：2026-10-29
+最终测试结果：PASS
+
+multi_channel_launcher=0
+one_command_background_controller=0
+persistent_systemd_worker_completed=0
+chain-v8-test-exit_active=0
+chain-v8-test-relay-node1_active=0
+chain-v8-test-relay-node2_active=0
+config_chain-v8-test-exit=0
+config_chain-v8-test-relay-node1=0
+config_chain-v8-test-relay-node2=0
+config_root=0
+client_has_two_relays_and_continuous_urltest=0
+first_relay_stopped_client_auto_uses_second=0
+existing_files_preserved=0
+Domainesia出口：HTTP 204，首字节0.051774秒，下载258.9 Mbps
+入口1完整两跳：HTTP 204，首字节0.055580秒，下载259.5 Mbps
+入口2完整两跳：HTTP 204，首字节0.055027秒，下载271.7 Mbps
+result=PASS
+
+验证覆盖
+- 多通道下载器和下载内容逐字节比对
+- Bash语法和ShellCheck
+- 逐台交互输入两台VPS
+- systemd独立后台任务完成标记
+- 两台入口SSH密码部署
+- 出口与两台入口服务均为active
+- 所有sing-box配置通过官方check
+- 客户端配置包含两台HY2和每分钟urltest
+- 主动停止入口1后，客户端自动通过入口2获得HTTP 204
+- 端口冲突避让
+- 原有文件保留
+- 临时密码文件退出时删除
+
+测试限制
+CI证明脚本控制流程、后台存活、配置、协议、真实公网联网和入口故障切换有效。用户实际延迟仍由用户到入口、入口到印度尼西亚的物理线路与运营商路由决定；脚本不能保证违反物理网络条件的固定10倍提升。
