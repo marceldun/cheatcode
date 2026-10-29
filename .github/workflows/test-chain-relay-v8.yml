@@ -1,0 +1,126 @@
+name: Test persistent adaptive multi-relay chain v8
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_chain_relay_v8.sh
+      - .github/workflows/test-chain-relay-v8.yml
+
+permissions:
+  contents: write
+
+jobs:
+  real-two-host-orchestration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify the exact multi-channel launcher
+        run: |
+          u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_chain_relay_v8.sh'; f=/tmp/downloaded-v8.sh; rm -f "$f"
+          for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u" 'https://github.com/marceldun/cheatcode/raw/refs/heads/main/install_chain_relay_v8.sh'; do
+            curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f" && [ -s "$f" ] && break
+          done
+          test -s "$f"
+          cmp install_chain_relay_v8.sh "$f"
+      - name: Static checks
+        run: |
+          bash -n install_chain_relay_v8.sh
+          shellcheck -x -S warning install_chain_relay_v8.sh
+      - name: Prepare isolated SSH target and occupied relay ports
+        run: |
+          sudo apt-get update -y >/dev/null
+          sudo apt-get install -y openssh-server >/dev/null
+          sudo mkdir -p /run/sshd /root/.ssh
+          sudo chmod 700 /root/.ssh
+          sudo ssh-keygen -q -t ed25519 -N '' -f /root/.ssh/id_ed25519
+          sudo sh -c 'cat /root/.ssh/id_ed25519.pub >> /root/.ssh/authorized_keys'
+          sudo chmod 600 /root/.ssh/authorized_keys
+          echo 'root:v8-test-password' | sudo chpasswd
+          sudo /usr/sbin/sshd -p 2222 -o PermitRootLogin=yes -o PasswordAuthentication=yes
+          cat >/tmp/block-v8.py <<'PY'
+          import socket, time
+          tcp=socket.socket(); tcp.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); tcp.bind(('0.0.0.0',24444)); tcp.listen(2)
+          udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); udp.bind(('0.0.0.0',24443))
+          time.sleep(1500)
+          PY
+          sudo python3 /tmp/block-v8.py >/tmp/block-v8.log 2>&1 &
+          echo $! >/tmp/block-v8.pid
+          sudo mkdir -p /etc/sing-box
+          echo 'existing-service-must-remain' | sudo tee /etc/sing-box/original-marker >/dev/null
+      - name: Run interactive one-command path through persistent systemd worker
+        run: |
+          set +e
+          printf '2\n127.0.0.1\nroot\n2222\nv8-test-password\n127.0.0.1\nroot\n2222\nv8-test-password\n' | sudo env \
+            WORK_DIR=/etc/chain-v8-test-exit \
+            SERVICE_NAME=chain-v8-test-exit \
+            EXIT_HY2_PORT=25443 \
+            EXIT_REALITY_PORT=25444 \
+            EXIT_IP=127.0.0.1 \
+            REMOTE_WORK_DIR_BASE=/etc/chain-v8-test-relay-node \
+            REMOTE_SERVICE_NAME_BASE=chain-v8-test-relay-node \
+            RELAY_PUBLIC_IP=127.0.0.1 \
+            MEM_KB_OVERRIDE=262144 \
+            bash install_chain_relay_v8.sh >/tmp/v8-controller.log 2>&1
+          echo $? >/tmp/v8-controller.rc
+          exit 0
+      - name: Verify background completion, two relays and automatic failure switch
+        run: |
+          set +e
+          report=/tmp/chain-v8-test-report.txt
+          : > "$report"
+          failed=0
+          echo "multi_channel_launcher=0" >> "$report"
+          controller_rc=$(cat /tmp/v8-controller.rc)
+          echo "one_command_background_controller=$controller_rc" >> "$report"; [ "$controller_rc" -eq 0 ] || failed=1
+          [ "$(cat /root/chain-v8-install.done)" -eq 0 ]
+          rc=$?; echo "persistent_systemd_worker_completed=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          for service in chain-v8-test-exit chain-v8-test-relay-node1 chain-v8-test-relay-node2; do
+            sudo systemctl is-active --quiet "$service"
+            rc=$?; echo "${service}_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          done
+          for conf in /etc/chain-v8-test-exit/config.json /etc/chain-v8-test-relay-node1/config.json /etc/chain-v8-test-relay-node2/config.json /root/NekoRay-v8-24小时自动择优.json; do
+            sudo /etc/chain-v8-test-exit/sing-box check -c "$conf"
+            rc=$?; echo "config_$(basename "$(dirname "$conf")")=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          done
+          count=$(sudo jq '[.outbounds[]|select(.type=="hysteria2")]|length' /root/NekoRay-v8-24小时自动择优.json)
+          interval=$(sudo jq -r '.outbounds[]|select(.type=="urltest")|.interval' /root/NekoRay-v8-24小时自动择优.json)
+          [ "$count" -eq 2 ] && [ "$interval" = 1m ]
+          rc=$?; echo "client_has_two_relays_and_continuous_urltest=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo systemctl stop chain-v8-test-relay-node1
+          sudo /etc/chain-v8-test-exit/sing-box run -c /root/NekoRay-v8-24小时自动择优.json >/tmp/v8-client.log 2>&1 &
+          client_pid=$!
+          success=1
+          for i in $(seq 1 15); do
+            sleep 2
+            code=$(curl --noproxy '' -sS -o /dev/null -w '%{http_code}' --socks5-hostname 127.0.0.1:2080 --max-time 10 https://www.gstatic.com/generate_204 || true)
+            if [ "$code" = 204 ]; then success=0; break; fi
+          done
+          sudo kill "$client_pid" 2>/dev/null || true
+          echo "first_relay_stopped_client_auto_uses_second=$success" >> "$report"; [ "$success" -eq 0 ] || failed=1
+          sudo grep -q '^existing-service-must-remain$' /etc/sing-box/original-marker
+          rc=$?; echo "existing_files_preserved=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          grep '真实联网通过' /root/chain-v8-install.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' >> "$report" || true
+          if [ "$failed" -eq 0 ]; then echo result=PASS >> "$report"; else
+            echo result=FAIL >> "$report"
+            echo controller_log_tail: >> "$report"
+            tail -150 /root/chain-v8-install.log >> "$report"
+            echo client_log: >> "$report"; cat /tmp/v8-client.log >> "$report"
+          fi
+      - name: Publish machine-readable report
+        if: always()
+        run: |
+          cp /tmp/chain-v8-test-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan chain-v8-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "Chain v8 test report $GITHUB_SHA"
+          git push --force origin HEAD:chain-v8-test-report
+      - name: Set final result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/chain-v8-test-report.txt
