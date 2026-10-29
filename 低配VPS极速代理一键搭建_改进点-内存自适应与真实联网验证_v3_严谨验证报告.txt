@@ -1,0 +1,46 @@
+低配 VPS 极速代理一键搭建 v3——严谨验证报告
+================================================
+
+验证日期：2026-10-29
+被测提交：ba190ea
+测试平台：GitHub Actions 海外 Ubuntu 24.04.5 LTS，4 核，约 16GB 内存
+
+自动化实机验证结果：
+- Bash 严格语法检查：PASS
+- ShellCheck warning 级静态检查：PASS
+- 从零真实安装：PASS
+- 官方 sing-box 内核配置检查：PASS
+- systemd 服务启动并保持 active：PASS
+- Hysteria2 UDP 443 监听：PASS
+- VLESS Reality TCP 443 监听：PASS
+- 经 Hysteria2 完整加密通道访问外网：PASS（HTTP 204）
+- 经 Hysteria2 完整加密通道传输 32MB 测试文件：PASS
+- 测试机本机完整加密吞吐：2795.5 Mbps
+- 重复安装：PASS
+- 开启 salamander 混淆后的真实重装：PASS
+- 强制 256MB tiny 低内存参数分支：PASS
+- 节点信息和管理命令生成：PASS
+
+测试结论：
+脚本能够从零安装、生成有效配置、启动服务、建立 Hysteria2 加密连接并通过该连接访问互联网；最低内存参数路径和可选混淆路径均经过真实执行。2795.5 Mbps 是测试机内部完整加密链路的处理能力，用于确认脚本和协议配置没有成为明显瓶颈，不代表任何一台 VPS 的公网带宽。
+
+客观限制：
+软件无法突破 VPS 套餐带宽、共享宿主机限速、机房拥堵、跨境路由丢包或运营商 UDP 限制，因此不能诚实保证在任意垃圾 VPS 上比原节点固定快 10 倍。v3 已对脚本可控制的 CPU、内存、QUIC 缓冲、BBR/FQ、UDP GRO、多协议常驻开销和真实联网验证进行优化。
+
+机器可读测试报告：
+bash_syntax=0
+shellcheck=0
+default_real_install=0
+service_active=0
+official_config_check=0
+udp_443_listening=0
+tcp_443_listening=0
+node_info_created=0
+hy2_real_network=HTTP_204
+hy2_local_encrypted_throughput=2795.5_Mbps
+obfs_real_reinstall=0
+obfs_official_config_check=0
+obfs_present=0
+obfs_service_active=0
+tiny_memory_profile=0
+result=PASS
