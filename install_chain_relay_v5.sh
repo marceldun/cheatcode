@@ -354,7 +354,7 @@ deploy_relay(){
   case "$login" in *@*) ;; *) login="root@$login" ;; esac
   ssh_port="${RELAY_SSH_PORT:-22}"
   local -a base_ssh=(ssh -p "$ssh_port" -o ConnectTimeout=12 -o ServerAliveInterval=10 -o StrictHostKeyChecking=accept-new)
-  if "${base_ssh[@]}" -o BatchMode=yes "$login" 'test "$(id -u)" -eq 0' >/dev/null 2>&1; then
+  if [ "${RELAY_FORCE_PASSWORD:-0}" != 1 ] && "${base_ssh[@]}" -o BatchMode=yes "$login" 'test "$(id -u)" -eq 0' >/dev/null 2>&1; then
     auth=key
   else
     command -v sshpass >/dev/null 2>&1 || die "该高速 VPS 没有可用 SSH 密钥，并且 sshpass 安装失败。"

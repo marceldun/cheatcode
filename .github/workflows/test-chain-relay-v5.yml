@@ -30,7 +30,8 @@ jobs:
           sudo ssh-keygen -q -t ed25519 -N '' -f /root/.ssh/id_ed25519
           sudo sh -c 'cat /root/.ssh/id_ed25519.pub >> /root/.ssh/authorized_keys'
           sudo chmod 600 /root/.ssh/authorized_keys
-          sudo /usr/sbin/sshd -p 2222
+          echo 'root:v5-test-password' | sudo chpasswd
+          sudo /usr/sbin/sshd -p 2222 -o PermitRootLogin=yes -o PasswordAuthentication=yes
           cat >/tmp/block-v5.py <<'PY'
           import socket, time
           tcp=socket.socket(); tcp.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); tcp.bind(('0.0.0.0',26444)); tcp.listen(2)
@@ -53,6 +54,8 @@ jobs:
             EXIT_IP=127.0.0.1 \
             RELAY_LOGIN=root@127.0.0.1 \
             RELAY_SSH_PORT=2222 \
+            RELAY_FORCE_PASSWORD=1 \
+            RELAY_PASSWORD=v5-test-password \
             REMOTE_WORK_DIR=/etc/chain-v5-test-relay \
             REMOTE_SERVICE_NAME=chain-v5-test-relay \
             RELAY_HY2_PORT=26443 \
