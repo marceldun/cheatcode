@@ -1,0 +1,15 @@
+bash_syntax=0
+shellcheck=0
+default_real_install=0
+service_active=0
+official_config_check=0
+udp_443_listening=0
+tcp_443_listening=0
+node_info_created=0
+[成功] HY2 真实联网通过（HTTP 204）；本机完整加密吞吐：2795.5 Mbps
+obfs_real_reinstall=0
+obfs_official_config_check=0
+obfs_present=0
+obfs_service_active=0
+tiny_memory_profile=0
+result=PASS
