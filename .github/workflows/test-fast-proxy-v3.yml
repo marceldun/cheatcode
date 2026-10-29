@@ -1,0 +1,35 @@
+name: Test fast proxy v3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-install-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static validation
+        run: |
+          bash -n install_fast_proxy_v3.sh
+          shellcheck -x -S warning install_fast_proxy_v3.sh
+      - name: Real clean installation and network test
+        run: sudo bash install_fast_proxy_v3.sh
+      - name: Verify persisted service and artifacts
+        run: |
+          sudo systemctl is-active --quiet sing-box
+          sudo /etc/sing-box/sing-box check -c /etc/sing-box/config.json
+          sudo ss -uln | grep -E '[:.]443[[:space:]]'
+          sudo ss -tln | grep -E '[:.]443[[:space:]]'
+          sudo test -s /root/sing-box-fast-v3-info.txt
+          sudo sb-fast info
+      - name: Reinstall test with optional obfuscation
+        run: sudo env ENABLE_OBFS=1 bash install_fast_proxy_v3.sh
+      - name: Verify obfuscation configuration and real service
+        run: |
+          sudo /etc/sing-box/sing-box check -c /etc/sing-box/config.json
+          sudo grep -q '"obfs"' /etc/sing-box/config.json
+          sudo systemctl is-active --quiet sing-box

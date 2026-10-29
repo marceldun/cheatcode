@@ -1,0 +1,25 @@
+低配 VPS 极速代理一键搭建 v3
+================================
+
+一键安装（整行复制到 VPS 后按一次回车）：
+
+bash <(curl -fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v3.sh)
+
+脚本自动完成：
+1. 检测 CPU、内存、系统和网卡，选择低内存网络参数。
+2. 安装 Hysteria2 最快主节点和 VLESS Reality 稳定备用节点。
+3. 启用可用的 BBR/FQ、合理 QUIC 缓冲和 UDP GRO。
+4. 校验官方 sing-box 配置、启动状态、TCP/UDP 监听。
+5. 经本机 Hysteria2 完整加密通道进行真实外网访问测试。
+6. 经本机 Hysteria2 完整加密通道下载 32MB 文件并报告处理吞吐。
+7. 最后直接输出 NekoRay 可导入链接。
+
+重看节点：sb-fast info
+查看状态：sb-fast status
+
+必须说明：
+- 脚本能降低协议、CPU、内存和错误缓冲配置造成的损耗。
+- 任何脚本都不能把 VPS 机房物理带宽或差线路固定提升 10 倍。
+- 云厂商安全组属于 VPS 外部控制，必须已经允许 UDP 443 和 TCP 443。
+- 原始 v2 脚本已单独保留，没有替换或删除。
+
