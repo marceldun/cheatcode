@@ -1,0 +1,51 @@
+低配 VPS 极速代理一键搭建 v4——严谨验证报告
+================================================
+
+验证日期：2026-10-29
+被测提交：8feb2a4
+测试平台：GitHub Actions 海外 Ubuntu 24.04.5 LTS
+
+针对用户故障的第一轮真实测试：
+- 测试程序预先占用 TCP 443：PASS
+- v4 从零执行完整安装：PASS
+- HY2 保持使用空闲的 UDP 443：PASS
+- Reality 自动避开已占用的 TCP 443：PASS
+- sing-box systemd 服务 active：PASS
+- 经 HY2 完整加密通道真实访问外网：PASS（HTTP 204）
+- 本机完整加密吞吐：1927.8 Mbps
+
+更严格的第二轮真实测试：
+- 测试程序同时占用 TCP 443 和 UDP 443：PASS
+- 强制 256MB tiny 低内存档位：PASS
+- 开启 salamander 混淆：PASS
+- HY2 自动避开已占用的 UDP 443：PASS
+- Reality 自动避开已占用的 TCP 443：PASS
+- 官方 sing-box 配置校验：PASS
+- sing-box systemd 服务 active：PASS
+- HY2 真实联网：PASS
+
+静态与回归验证：
+- Bash 严格语法检查：PASS
+- ShellCheck warning 级检查：PASS
+- v3 凭据迁移逻辑：已包含
+- v3 脚本、说明、验证报告和完整包：继续保留
+
+结论：
+用户日志中的失败原因是其他程序占用了 TCP 443。v4 不会停止或删除占用端口的程序，而是分别检查 TCP 和 UDP，自动选择可用端口，并将最终端口同步写入服务配置、防火墙规则、真实联网测试和 NekoRay 导入链接。两种人为端口冲突场景均完成真实安装与联网。
+
+机器可读结果：
+bash_syntax=0
+shellcheck=0
+tcp443_conflict_real_install=0
+tcp_conflict_keeps_hy2_udp443=0
+reality_auto_avoids_tcp443=0
+tcp_conflict_service_active=0
+hy2_real_network=HTTP_204
+hy2_local_encrypted_throughput=1927.8_Mbps
+tcp_udp443_conflict_tiny_obfs_install=0
+hy2_auto_avoids_udp443=0
+reality_auto_avoids_tcp443_second_run=0
+official_config_check=0
+both_conflicts_service_active=0
+tiny_obfs_profile=0
+result=PASS
