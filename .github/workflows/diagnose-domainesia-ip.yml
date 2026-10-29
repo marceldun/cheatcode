@@ -1,0 +1,42 @@
+name: Diagnose Domainesia IP from Asia
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/diagnose-domainesia-ip.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  globalping:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run public multi-region ping
+        run: |
+          body='{"type":"ping","target":"202.155.14.177","locations":[{"magic":"China"},{"magic":"Hong Kong"},{"magic":"Singapore"},{"magic":"Indonesia"},{"magic":"Japan"}],"limit":5,"measurementOptions":{"packets":5}}'
+          response=$(curl -fsS -X POST https://api.globalping.io/v1/measurements -H 'Content-Type: application/json' -d "$body")
+          id=$(jq -r .id <<<"$response")
+          test -n "$id" -a "$id" != null
+          for i in $(seq 1 30); do
+            curl -fsS "https://api.globalping.io/v1/measurements/$id" -o /tmp/result.json
+            status=$(jq -r .status /tmp/result.json)
+            [ "$status" = finished ] && break
+            sleep 2
+          done
+          jq '{id,status,results:[.results[]|{location:.probe.location,network:.probe.network,stats:.result.stats,rawOutput:.result.rawOutput}]}' /tmp/result.json > /tmp/DOMAINESIA_DIAGNOSIS.json
+          jq -r '.results[] | [.location.country,.location.city,(.network // ""),(.stats.avg // "NA"),(.stats.loss // "NA")] | @tsv' /tmp/DOMAINESIA_DIAGNOSIS.json > /tmp/SUMMARY.tsv
+      - name: Publish report
+        if: always()
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan domainesia-diagnosis
+          git rm -rf .
+          cp /tmp/DOMAINESIA_DIAGNOSIS.json .
+          cp /tmp/SUMMARY.tsv .
+          git add .
+          git commit -m "Domainesia route diagnosis $GITHUB_SHA"
+          git push --force origin HEAD:domainesia-diagnosis
