@@ -1,0 +1,96 @@
+name: Test fast proxy v4 port conflicts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_fast_proxy_v4.sh
+      - .github/workflows/test-fast-proxy-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  real-port-conflict-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static validation and real occupied-port installations
+        run: |
+          set +e
+          report=/tmp/proxy-v4-test-report.txt
+          : > "$report"
+          failed=0
+          bash -n install_fast_proxy_v4.sh
+          rc=$?; echo "bash_syntax=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          shellcheck -x -S warning install_fast_proxy_v4.sh >/tmp/shellcheck-v4.log 2>&1
+          rc=$?; echo "shellcheck=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+
+          cat >/tmp/block443.py <<'PY'
+          import socket, sys, time
+          tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+          tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          tcp.bind(('0.0.0.0', 443)); tcp.listen(2)
+          udp = None
+          if len(sys.argv) > 1 and sys.argv[1] == 'both':
+              udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+              udp.bind(('0.0.0.0', 443))
+          time.sleep(1200)
+          PY
+
+          sudo python3 /tmp/block443.py tcp >/tmp/block-tcp.log 2>&1 &
+          blocker=$!
+          sleep 1
+          sudo bash install_fast_proxy_v4.sh >/tmp/install-v4-tcp-conflict.log 2>&1
+          rc=$?; echo "tcp443_conflict_real_install=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          hy2=$(sudo jq -r '.inbounds[] | select(.type=="hysteria2") | .listen_port' /etc/sing-box/config.json 2>/dev/null)
+          reality=$(sudo jq -r '.inbounds[] | select(.type=="vless") | .listen_port' /etc/sing-box/config.json 2>/dev/null)
+          [ "$hy2" = 443 ]; rc=$?; echo "tcp_conflict_keeps_hy2_udp443=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          [ "$reality" != 443 ] && [ -n "$reality" ]; rc=$?; echo "reality_auto_avoids_tcp443=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo systemctl is-active --quiet sing-box
+          rc=$?; echo "tcp_conflict_service_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          grep '本机完整加密吞吐' /tmp/install-v4-tcp-conflict.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' >> "$report" || true
+
+          sudo systemctl stop sing-box
+          sudo kill "$blocker" 2>/dev/null || true
+          sleep 1
+          sudo python3 /tmp/block443.py both >/tmp/block-both.log 2>&1 &
+          blocker=$!
+          sleep 1
+          sudo env ENABLE_OBFS=1 MEM_KB_OVERRIDE=262144 bash install_fast_proxy_v4.sh >/tmp/install-v4-both-conflict.log 2>&1
+          rc=$?; echo "tcp_udp443_conflict_tiny_obfs_install=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          hy2=$(sudo jq -r '.inbounds[] | select(.type=="hysteria2") | .listen_port' /etc/sing-box/config.json 2>/dev/null)
+          reality=$(sudo jq -r '.inbounds[] | select(.type=="vless") | .listen_port' /etc/sing-box/config.json 2>/dev/null)
+          [ "$hy2" != 443 ] && [ -n "$hy2" ]; rc=$?; echo "hy2_auto_avoids_udp443=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          [ "$reality" != 443 ] && [ -n "$reality" ]; rc=$?; echo "reality_auto_avoids_tcp443_second_run=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo /etc/sing-box/sing-box check -c /etc/sing-box/config.json
+          rc=$?; echo "official_config_check=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo systemctl is-active --quiet sing-box
+          rc=$?; echo "both_conflicts_service_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo grep -q '"obfs"' /etc/sing-box/config.json
+          rc=$?; echo "tiny_obfs_profile=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo kill "$blocker" 2>/dev/null || true
+
+          if [ "$failed" -eq 0 ]; then echo 'result=PASS' >> "$report"; else
+            echo 'result=FAIL' >> "$report"
+            echo 'shellcheck_log:' >> "$report"; cat /tmp/shellcheck-v4.log >> "$report"
+            echo 'tcp_conflict_log:' >> "$report"; tail -50 /tmp/install-v4-tcp-conflict.log >> "$report"
+            echo 'both_conflict_log:' >> "$report"; tail -50 /tmp/install-v4-both-conflict.log >> "$report"
+          fi
+      - name: Publish machine-readable test report branch
+        if: always()
+        run: |
+          cp /tmp/proxy-v4-test-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan proxy-v4-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "Proxy v4 test report $GITHUB_SHA"
+          git push --force origin HEAD:proxy-v4-test-report
+      - name: Set final test result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/proxy-v4-test-report.txt
