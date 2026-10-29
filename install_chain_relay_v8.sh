@@ -485,7 +485,7 @@ collect_and_launch_worker(){
   done
   unit="chain-v8-installer-$(date +%s)"
   systemd-run --unit="$unit" --property=Type=exec /bin/bash -c \
-    "CHAIN_V8_WORKER=1 CONFIG_ENV='$cfg' bash '$runner' >>'$log' 2>&1; rc=\$?; echo \$rc >'$done_file'; exit \$rc" >/dev/null
+    "CHAIN_V8_WORKER=1 CONFIG_ENV='$cfg' bash '$runner' >>'$log' 2>&1; rc=\$?; rm -f '$cfg'; echo \$rc >'$done_file'; exit \$rc" >/dev/null
   ok "后台安装已启动。即使Xshell随后断线，安装也会继续。"
   printf '进度文件：%s\n完成结果：%s\n\n' "$log" "$done_file"
   # 保持显示实时进度；SSH若被旧代理切断，systemd任务不受影响。
