@@ -1,0 +1,55 @@
+任意高速 VPS 入口中转 → Domainesia 最终出口 v5——严谨验证报告
+================================================================
+
+验证日期：2026-10-29
+最终被测提交：0f6ad30
+测试平台：GitHub Actions 海外 Ubuntu 24.04.5 LTS
+
+部署流程验证：
+- Bash 严格语法检查：PASS
+- ShellCheck warning 级检查：PASS
+- 单命令控制端流程：PASS
+- 真实 SSH root 密码登录：PASS
+- 密码通过隐藏/环境方式传递，未写入节点文件：PASS
+- 自动传输完整脚本与 root-only 参数文件：PASS
+- 自动部署 Domainesia 出口服务：PASS
+- 自动部署独立入口中转服务：PASS
+- 出口和入口 systemd 服务 active：PASS
+- 官方 sing-box 出口配置检查：PASS
+- 官方 sing-box 入口配置检查：PASS
+
+功能验证：
+- 出口 DNS 强制 ipv4_only：PASS
+- Domainesia 出口同时保留直连用户和中转专用用户：PASS
+- 入口所有代理流量强制发往 Domainesia 出口：PASS
+- 人为占用入口指定 TCP/UDP 端口后自动避让：PASS
+- 高速 VPS 原有目录和标记文件保留：PASS
+- 256MB tiny 低内存网络参数：PASS
+- BBR/FQ、QUIC 缓冲和 UDP GRO 配置路径：PASS
+
+真实联网验证：
+- Domainesia 出口加密通道：HTTP 204
+- Domainesia 出口测试首字节：0.029682 秒
+- Domainesia 出口测试下载：385.7 Mbps
+- 高速入口 → Domainesia → 外网完整两跳：HTTP 204
+- 完整两跳测试首字节：0.031200 秒
+- 完整两跳测试下载：384.7 Mbps
+
+测试说明：
+自动测试使用同一台 Ubuntu 测试机中的独立出口服务和独立入口服务，并通过真实 SSH 密码登录执行远程部署路径。它验证了安装编排、服务隔离、两层加密、强制出口、端口冲突、IPv4 DNS 和完整联网。用户安装时，脚本会在两台真实 VPS 上再次执行完整两跳联网及速度测试；最终公网速度由所选高速 VPS 到 Domainesia 的真实线路和两台 VPS 套餐带宽决定。
+
+机器可读结果：
+one_command_controller=0
+exit_service_active=0
+relay_service_active=0
+exit_official_config_check=0
+relay_official_config_check=0
+exit_ipv4_only_dns=0
+exit_direct_and_relay_users=0
+relay_forces_domainesia_exit=0
+relay_occupied_ports_auto_avoided=0
+existing_relay_files_preserved=0
+full_two_hop_real_network=0
+exit_http=204
+relay_chain_http=204
+result=PASS
