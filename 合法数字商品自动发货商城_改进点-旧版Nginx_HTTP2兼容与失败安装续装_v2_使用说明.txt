@@ -1,0 +1,43 @@
+合法数字商品自动发货商城 v2
+改进点：旧版Nginx HTTP/2兼容与失败安装续装
+
+本次失败原因
+VPS上的Nginx版本不认识新式“http2 on;”指令。v1已经完成应用、数据库和证书步骤，但在nginx -t处停止。
+v2改用从旧版到新版均可识别的“listen ... ssl http2”语法，并会在第一次nginx -t之前修复v1遗留的无效配置。
+
+v2是完整独立副本
+- v1脚本、程序和压缩包原样保留。
+- v2可在全新Ubuntu/Debian从零安装。
+- 也可以直接接着这次v1失败状态继续；不删除数据库、证书或已导入数据。
+- 后台systemd安装，调整sing-box时即使Xshell断开也会继续。
+- 本次输入的管理员密码会覆盖失败安装中的旧密码，确保可以登录。
+
+唯一执行命令
+重新连接Domainesia VPS后，复制执行完整一行：
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_digital_store_v2.sh';f=/tmp/install_digital_store_v2.sh;rm -f "$f";for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u";do curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f"&&[ -s "$f" ]&&break;done;if [ -s "$f" ];then bash "$f";else echo '所有下载通道均失败';exit 1;fi
+
+回答三个问题
+1. 域名直接回车：fbshangcheng.duckdns.org
+2. 输入客服微信号或邮箱。
+3. 输入管理员marcel的新密码（至少12位），或者直接回车自动生成。
+
+如果Xshell再次断开
+不要重跑命令。后台继续执行。重新连接后查看：
+cat /root/marcel-store-install.done
+显示0代表成功。
+查看完整日志：
+cat /root/marcel-store-install.log
+
+成功地址
+https://fbshangcheng.duckdns.org
+https://fbshangcheng.duckdns.org/admin/login
+管理员：marcel
+密码：本次输入或自动生成的密码。
+
+v2同时修复
+- 不再把安装程序失败误报为“所有下载通道失败”。
+- 旧Nginx HTTP/2语法自动修复。
+- v1残留坏配置无需手工删除。
+- systemd配置变更后明确重启至v2程序。
+- 部分安装恢复时重新设置管理员密码。
+- 保留已签发的Let's Encrypt证书和现有SQLite数据。
