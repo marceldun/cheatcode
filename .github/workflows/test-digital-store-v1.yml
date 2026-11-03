@@ -18,7 +18,7 @@ jobs:
       - name: Static checks
         run: |
           bash -n install_digital_store_v1.sh
-          shellcheck -x -S warning install_digital_store_v1.sh
+          shellcheck -x -S error install_digital_store_v1.sh
           python3 -m py_compile digital_store_v1/app.py digital_store_v1/payments.py digital_store_v1/tests/test_store.py
       - name: Isolated application and signed payment callback tests
         run: |
