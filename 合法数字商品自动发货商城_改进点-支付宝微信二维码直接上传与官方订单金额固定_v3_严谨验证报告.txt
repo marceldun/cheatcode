@@ -1,0 +1,34 @@
+合法数字商品自动发货商城 v3 验证报告
+验证日期：2026-11-03
+最终结果：PASS
+
+public_multi_channel_launcher=0
+old_nginx_http2_syntax_repaired=0
+direct_alipay_wechat_qr_upload=0
+official_dynamic_qr_fixed_order_amount=0
+application_service_active=0
+nginx_config_valid=0
+full_reverse_proxy_home=0
+database_health=0
+plaintext_bootstrap_password_removed=0
+secret_environment_permissions=0
+local_median_ttfb_under_100ms=0 (0.002224 seconds)
+
+test_015_admin_direct_qr_upload_and_public_display ... ok
+test_01_public_layout_health_and_headers ... ok
+test_02_admin_inventory_order_delivery_and_secure_lookup ... ok
+test_03_payment_crypto ... ok
+test_04_signed_alipay_callback_auto_delivery ... ok
+test_05_signed_wechat_callback_auto_delivery ... ok
+
+新增验证
+- 生成并上传支付宝和微信两张真实PNG测试二维码
+- 服务端Pillow读取、像素限制、单帧检查、重新编码
+- 后台显示两个预览，公开订单资源返回image/png
+- 支付宝当面付预下单请求的12.34元订单严格发送total_amount=12.34
+- 官方订单二维码与订单号绑定
+- 支付宝RSA2通知验签、金额校验与自动发货
+- 微信RSA通知验签、AES-GCM解密、金额校验与自动发货
+
+边界
+个人静态收款码没有商户回调能力，也不能由网站动态写入金额。固定金额动态二维码已经在官方商户模式实现，实际生产调用必须使用用户自己的有效商户号和官方密钥。
