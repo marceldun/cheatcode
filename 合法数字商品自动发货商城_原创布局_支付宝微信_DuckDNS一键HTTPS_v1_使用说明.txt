@@ -1,0 +1,52 @@
+合法数字商品自动发货商城 v1
+原创布局 · 支付宝/微信 · DuckDNS一键HTTPS · 断线后台继续
+
+适用范围
+仅用于销售你有权转售的兑换码、许可证、课程、网络服务激活码等合法数字商品。
+不得用于交易第三方账号、密码或未经授权的会员。
+
+唯一部署命令
+登录VPS的Xshell，复制执行完整一行：
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_digital_store_v1.sh';f=/tmp/install_digital_store_v1.sh;rm -f "$f";for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u";do curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f"&&[ -s "$f" ]&&break;done;[ -s "$f" ]&&bash "$f"||{ echo '所有下载通道均失败';exit 1;}
+
+你只需回答三个问题
+1. 域名：直接回车默认 fbshangcheng.duckdns.org。
+2. 客服联系方式：输入你的微信号或邮箱。
+3. 管理员marcel密码：至少12位；直接回车会自动生成并在最后显示。
+
+脚本随后交给systemd后台安装。即使现有代理重启导致Xshell断开，也不要重新执行命令；后台仍会完成。
+重新连接后查看：
+cat /root/marcel-store-install.done
+显示0代表成功。
+日志：
+cat /root/marcel-store-install.log
+
+部署完成
+商城：https://fbshangcheng.duckdns.org
+后台：https://fbshangcheng.duckdns.org/admin/login
+管理员账号：marcel
+管理员密码：安装时设置或最后自动生成的密码。
+
+后台第一次操作
+1. 点击网页左上角图标进入后台。
+2. 修改标题、图标文字、客服联系方式和商品价格。
+3. 在每个商品下面按“一行一条”导入合法兑换码/交付内容；库存使用Fernet加密保存。
+4. 没有官方商户接口时填写支付宝、微信收款码图片URL，收到款后在订单中点“确认收款并发货”。
+5. 有官方商户资料时，在“支付宝/微信官方商户自动发货”中填写资料并切换到官方模式。
+
+官方自动支付所需资料
+支付宝：App ID、应用RSA2私钥、支付宝公钥。
+微信支付：App ID、商户号、商户证书序列号、商户API私钥、微信平台公钥、32位API v3密钥。
+这些资料只能从支付宝/微信官方商户后台取得；没有商户号时任何网站都无法自动判断到账。
+支付回调会验证官方RSA签名、App ID、订单金额和订单号，通过后在数据库事务内扣减一条库存并自动发货；缺货订单显示客服联系方式。
+
+订单查询安全
+客户需要“购买邮箱 + 订单号 + 查询码”三项才能查看交付内容。没有采用仅凭邮箱显示密码的危险设计，避免别人知道邮箱后盗取商品。
+
+HTTPS和现有代理
+脚本验证DuckDNS IPv4必须指向本VPS，自动签发并续期Let's Encrypt证书。
+如果sing-box Reality占用TCP 443，脚本备份配置并把Reality移到内部端口，由HAProxy根据SNI透明分流；HY2的UDP 443保持不变。
+网站启用TLS 1.2/1.3、HSTS、安全响应头、静态资源一年缓存和gzip。
+
+速度说明
+自动化环境30次本机请求的中位首字节为0.001745秒。外部打开速度还取决于用户运营商、物理距离、DNS和VPS线路，软件不能保证所有用户固定0.1秒。

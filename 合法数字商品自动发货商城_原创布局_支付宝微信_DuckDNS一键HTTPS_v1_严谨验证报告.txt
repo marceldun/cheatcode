@@ -1,0 +1,38 @@
+合法数字商品自动发货商城 v1 验证报告
+验证日期：2026-11-03
+最终结果：PASS
+
+完整全新Ubuntu 24.04安装
+public_multi_channel_launcher=0
+application_service_active=0
+nginx_config_valid=0
+full_reverse_proxy_home=0
+database_health=0
+plaintext_bootstrap_password_removed=0
+secret_environment_permissions=0
+local_median_ttfb_under_100ms=0 (0.001745 seconds)
+
+功能与安全测试
+test_01_public_layout_health_and_headers ... ok
+test_02_admin_inventory_order_delivery_and_secure_lookup ... ok
+test_03_payment_crypto ... ok
+test_04_signed_alipay_callback_auto_delivery ... ok
+test_05_signed_wechat_callback_auto_delivery ... ok
+
+覆盖范围
+- 公开多通道一行安装命令实际下载并逐字节比对
+- 从零创建Python隔离环境、SQLite WAL数据库、systemd服务和Nginx反代
+- 原创响应式商城前台和左上角管理员入口
+- 商品、价格、标题、图标、联系方式与库存后台管理
+- 库存加密，数据库文件不含明文兑换码
+- 邮箱、订单号和查询码三因素查询
+- 支付宝RSA2签名回调、金额/App ID核对与自动发货
+- 微信支付RSA签名、AES-GCM通知解密、金额核对与自动发货
+- 缺货状态与客服联系提示
+- CSRF、登录/查询限速、scrypt密码、安全Cookie与安全响应头
+- 初始明文密码安装后删除，配置权限600
+- 30次本机反向代理首字节速度验证
+- systemd后台安装，SSH/代理断开不终止任务
+
+真实公网限制
+CI无法替用户的真实DuckDNS域名完成公网ACME挑战，因此生产脚本会在VPS上检查DNS、签发Let's Encrypt证书，并用本机SNI请求和openssl检查证书。支付宝/微信真实生产交易还需要用户自己的官方商户号与密钥；测试使用独立生成的RSA/AES密钥执行真实验签、解密和数据库自动发货流程。
