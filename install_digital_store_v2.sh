@@ -126,7 +126,7 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl daemon-reload; systemctl enable --now marcel-digital-store >/dev/null
+systemctl daemon-reload; systemctl enable marcel-digital-store >/dev/null; systemctl restart marcel-digital-store
 for _ in {1..15}; do curl -fsS http://127.0.0.1:8088/healthz >/dev/null && break; sleep 1; done
 curl -fsS http://127.0.0.1:8088/healthz | jq -e '.ok==true and .db==1' >/dev/null || { journalctl -u marcel-digital-store -n 80 --no-pager >&2; die "商城服务启动失败。"; }
 ok "商城应用和加密库存数据库正常"
