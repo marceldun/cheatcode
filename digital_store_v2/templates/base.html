@@ -1,0 +1,4 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}{{ site_settings().site_title }}{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}"></head>
+<body><header><a class="brand-icon" href="{{ url_for('admin_login') }}" title="管理员入口">{{ site_settings().icon_text }}</a><a class="brand" href="{{ url_for('index') }}">{{ site_settings().site_title }}</a><nav><a href="{{ url_for('index') }}">商品</a><a href="{{ url_for('lookup') }}">订单查询</a></nav></header>
+<main>{% with msgs=get_flashed_messages() %}{% if msgs %}<div class="flash">{% for m in msgs %}<p>{{m}}</p>{% endfor %}</div>{% endif %}{% endwith %}{% block content %}{% endblock %}</main>
+<footer>© {{ site_settings().site_title }} · {{ site_settings().contact }}</footer></body></html>
