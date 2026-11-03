@@ -1,0 +1,14 @@
+public_multi_channel_launcher=0
+application_service_active=0
+nginx_config_valid=0
+full_reverse_proxy_home=0
+database_health=0
+plaintext_bootstrap_password_removed=0
+secret_environment_permissions=0
+local_median_ttfb_under_100ms=0 (0.001745 seconds)
+test_01_public_layout_health_and_headers (test_store.StoreTest.test_01_public_layout_health_and_headers) ... ok
+test_02_admin_inventory_order_delivery_and_secure_lookup (test_store.StoreTest.test_02_admin_inventory_order_delivery_and_secure_lookup) ... ok
+test_03_payment_crypto (test_store.StoreTest.test_03_payment_crypto) ... ok
+test_04_signed_alipay_callback_auto_delivery (test_store.StoreTest.test_04_signed_alipay_callback_auto_delivery) ... ok
+test_05_signed_wechat_callback_auto_delivery (test_store.StoreTest.test_05_signed_wechat_callback_auto_delivery) ... ok
+result=PASS
