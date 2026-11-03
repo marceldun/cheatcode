@@ -32,10 +32,11 @@ jobs:
           chmod 700 "$f"
       - name: Isolated application and signed payment callback tests
         run: |
+          set -o pipefail
           python3 -m venv /tmp/store-test-venv
           /tmp/store-test-venv/bin/pip install -q --disable-pip-version-check -r digital_store_v1/requirements.txt
           cd digital_store_v1
-          PYTHONPATH=. /tmp/store-test-venv/bin/python -m unittest discover -s tests -v | tee /tmp/application-tests.txt
+          PYTHONPATH=. /tmp/store-test-venv/bin/python -m unittest discover -s tests -v 2>&1 | tee /tmp/application-tests.txt
       - name: Run exact one-command installer from zero
         run: |
           sudo env INSTALL_TEST_MODE=1 \
