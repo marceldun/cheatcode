@@ -20,6 +20,16 @@ jobs:
           bash -n install_digital_store_v1.sh
           shellcheck -x -S error install_digital_store_v1.sh
           python3 -m py_compile digital_store_v1/app.py digital_store_v1/payments.py digital_store_v1/tests/test_store.py
+      - name: Verify exact public one-line download path
+        run: |
+          u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_digital_store_v1.sh'; f=/tmp/install_digital_store_v1.sh
+          rm -f "$f"
+          for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u"; do
+            curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f" && [ -s "$f" ] && break
+          done
+          test -s "$f"
+          cmp install_digital_store_v1.sh "$f"
+          chmod 700 "$f"
       - name: Isolated application and signed payment callback tests
         run: |
           python3 -m venv /tmp/store-test-venv
@@ -32,12 +42,13 @@ jobs:
             STORE_DOMAIN=fbshangcheng.duckdns.org \
             STORE_CONTACT=wechat-test \
             STORE_ADMIN_PASSWORD_INPUT=Correct-Horse-Battery-123 \
-            bash install_digital_store_v1.sh | tee /tmp/installer.txt
+            bash /tmp/install_digital_store_v1.sh | tee /tmp/installer.txt
       - name: Verify service, proxy, security and local performance
         run: |
           set +e
           report=/tmp/digital-store-v1-report.txt
           : > "$report"; failed=0
+          echo "public_multi_channel_launcher=0" >> "$report"
           sudo systemctl is-active --quiet marcel-digital-store
           rc=$?; echo "application_service_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
           sudo nginx -t >/dev/null 2>&1
