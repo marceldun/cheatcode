@@ -7,7 +7,7 @@ ok(){ printf '%b\n' "${G}[成功]${N} $*"; }; warn(){ printf '%b\n' "${Y}[提示
 APP=/opt/marcel-digital-store-v1; DATA=/var/lib/marcel-store; ENV=/etc/marcel-store.env
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 RAW_BASE=https://raw.githubusercontent.com/marceldun/cheatcode/main
-DOMAIN="${STORE_DOMAIN:-}"; CONTACT="${STORE_CONTACT:-}"; ADMIN_PASSWORD="${STORE_ADMIN_PASSWORD_INPUT:-}"; TEST_MODE="${INSTALL_TEST_MODE:-0}"
+DOMAIN="${STORE_DOMAIN:-}"; CONTACT="${STORE_CONTACT:-}"; ADMIN_PASSWORD="${STORE_ADMIN_PASSWORD_INPUT:-}"; TEST_MODE="${INSTALL_TEST_MODE:-0}"; GENERATED_PASSWORD="${STORE_GENERATED_PASSWORD:-0}"
 
 step 1 "收集最少配置并检查系统"
 if [ -z "$DOMAIN" ]; then read -r -p "域名（直接回车使用 fbshangcheng.duckdns.org）: " DOMAIN; DOMAIN="${DOMAIN:-fbshangcheng.duckdns.org}"; fi
@@ -17,6 +17,40 @@ if [ -z "$CONTACT" ]; then read -r -p "客服联系方式（微信号或邮箱�
 if [ -z "$ADMIN_PASSWORD" ]; then read -r -s -p "管理员marcel的新密码（至少12位；直接回车自动生成）: " ADMIN_PASSWORD; echo; fi
 if [ -z "$ADMIN_PASSWORD" ]; then ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=' | head -c 18)"; GENERATED_PASSWORD=1; fi
 [ "${#ADMIN_PASSWORD}" -ge 12 ] || die "管理员密码至少12位，不能使用已公开的456qwe456。"
+
+# 当前SSH可能正经过本机代理；后续调整TCP 443或重启sing-box时，前台SSH可能断开。
+# 先把完整安装交给systemd独立执行，断线不会终止任务。
+if [ "${STORE_INSTALL_WORKER:-0}" != 1 ]; then
+  RUNNER=/root/install_digital_store_v1.sh
+  WORKER_ENV=/root/.marcel-store-installer.env
+  INSTALL_LOG=/root/marcel-store-install.log
+  DONE_FILE=/root/marcel-store-install.done
+  install -m 700 "${BASH_SOURCE[0]}" "$RUNNER"
+  {
+    printf 'STORE_DOMAIN=%q\n' "$DOMAIN"
+    printf 'STORE_CONTACT=%q\n' "$CONTACT"
+    printf 'STORE_ADMIN_PASSWORD_INPUT=%q\n' "$ADMIN_PASSWORD"
+    printf 'INSTALL_TEST_MODE=%q\n' "$TEST_MODE"
+    printf 'STORE_GENERATED_PASSWORD=%q\n' "$GENERATED_PASSWORD"
+  } > "$WORKER_ENV"
+  chmod 600 "$WORKER_ENV"; : > "$INSTALL_LOG"; rm -f "$DONE_FILE"
+  UNIT="marcel-store-installer-$(date +%s)"
+  systemd-run --unit="$UNIT" --property=Type=exec /bin/bash -c \
+    "set -a; . '$WORKER_ENV'; set +a; STORE_INSTALL_WORKER=1 bash '$RUNNER' >>'$INSTALL_LOG' 2>&1; rc=\$?; rm -f '$WORKER_ENV'; echo \$rc >'$DONE_FILE'; exit \$rc" >/dev/null
+  ok "后台安装已启动；即使Xshell断线也会继续。"
+  printf '安装日志：%s\n完成状态：%s（显示0代表成功）\n' "$INSTALL_LOG" "$DONE_FILE"
+  shown=0
+  while [ ! -s "$DONE_FILE" ]; do
+    lines=$(wc -l < "$INSTALL_LOG" 2>/dev/null || echo 0)
+    if [ "$lines" -gt "$shown" ]; then sed -n "$((shown+1)),${lines}p" "$INSTALL_LOG"; shown="$lines"; fi
+    sleep 2
+  done
+  lines=$(wc -l < "$INSTALL_LOG" 2>/dev/null || echo 0)
+  [ "$lines" -le "$shown" ] || sed -n "$((shown+1)),${lines}p" "$INSTALL_LOG"
+  [ "$(cat "$DONE_FILE")" = 0 ] || die "后台安装失败，详情：$INSTALL_LOG"
+  exit 0
+fi
+
 . /etc/os-release 2>/dev/null || true
 case "${ID:-}" in debian|ubuntu) ;; *) die "当前v1支持Ubuntu/Debian。";; esac
 export DEBIAN_FRONTEND=noninteractive
