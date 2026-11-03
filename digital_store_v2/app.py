@@ -74,7 +74,9 @@ def init_db():
     username=os.environ.get("STORE_ADMIN_USER","marcel")
     password=os.environ.get("STORE_ADMIN_PASSWORD")
     if password:
-        conn.execute("INSERT OR IGNORE INTO admins VALUES(?,?)",(username,generate_password_hash(password,method="scrypt")))
+        # The one-click installer is an authenticated root action. Updating here makes a
+        # failed/partial previous installation recover with the password just entered.
+        conn.execute("INSERT INTO admins VALUES(?,?) ON CONFLICT(username) DO UPDATE SET password_hash=excluded.password_hash",(username,generate_password_hash(password,method="scrypt")))
     if conn.execute("SELECT count(*) FROM products").fetchone()[0] == 0:
         for i,(name,desc,price,cat) in enumerate([
           ("软件会员兑换码","购买后自动发放一枚合法兑换码",990,"会员服务"),
