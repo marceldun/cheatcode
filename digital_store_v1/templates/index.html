@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% block content %}
+<section class="hero"><span class="eyebrow">DIGITAL DELIVERY</span><h1>{{site_settings().site_title}}</h1><p>{{site_settings().site_subtitle}}</p><div class="notice">{{site_settings().notice}}</div></section>
+<div class="section-head"><h2>选择商品</h2><a href="{{url_for('lookup')}}">查询已购内容 →</a></div>
+<section class="grid">{% for p in products %}<article class="card"><span class="category">{{p.category}}</span><h3>{{p.name}}</h3><p>{{p.description}}</p><div class="card-bottom"><div><b>¥{{ '%.2f'|format(p.price_cents/100) }}</b><small>{% if p.stock %}库存 {{p.stock}}{% else %}暂时缺货{% endif %}</small></div><a class="button {% if not p.stock %}muted{% endif %}" href="{{url_for('buy',pid=p.id)}}">立即购买</a></div></article>{% endfor %}</section>
+{% endblock %}
