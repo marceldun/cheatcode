@@ -1,0 +1,42 @@
+合法数字商品自动发货商城 v4 验证报告
+验证日期：2026-11-04
+最终结果：PASS
+
+public_multi_channel_launcher=0
+old_nginx_http2_syntax_repaired=0
+direct_alipay_wechat_qr_upload=0
+official_dynamic_qr_fixed_order_amount=0
+payment_callback_auto_inventory_delivery=0
+single_field_email_or_phone_order_lookup=0
+right_side_wechat_support_card=0
+application_service_active=0
+nginx_config_valid=0
+full_reverse_proxy_home=0
+database_health=0
+plaintext_bootstrap_password_removed=0
+secret_environment_permissions=0
+local_median_ttfb_under_100ms=0 (0.001618 seconds)
+
+test_015_admin_direct_qr_upload_and_public_display ... ok
+test_01_public_layout_health_and_headers ... ok
+test_02_admin_inventory_order_delivery_and_secure_lookup ... ok
+test_035_checkout_redirects_to_fixed_amount_dynamic_qr ... ok
+test_03_payment_crypto ... ok
+test_04_signed_alipay_callback_auto_delivery ... ok
+test_05_signed_wechat_callback_auto_delivery ... ok
+
+新增验证覆盖
+- 官方动态二维码创建请求严格携带订单金额
+- 下单成功直接进入二维码订单页
+- 支付宝RSA2回调验签、金额核对、事务扣库存和自动发货
+- 微信RSA验签、AES-GCM解密、金额核对、事务扣库存和自动发货
+- 安全状态接口供订单页每2秒自动刷新
+- 手机号中的空格、括号和连字符归一化
+- 邮箱/手机号单字段查询订单列表
+- 查询结果不泄露加密库存内容
+- 支付宝、微信支付、客服微信三张二维码直接上传
+- 首页/订单页右侧客服微信号和二维码
+- v1、v2、v3源文件及压缩包保留
+
+生产边界
+真实自动收款依赖用户自己的支付宝/微信有效官方商户权限和密钥。个人静态收款码没有动态金额接口或到账回调，任何脚本都无法在不接入官方商户接口的情况下可靠实现。
