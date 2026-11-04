@@ -1,0 +1,22 @@
+public_multi_channel_launcher=0
+old_nginx_http2_syntax_repaired=0
+direct_alipay_wechat_qr_upload=0
+official_dynamic_qr_fixed_order_amount=0
+payment_callback_auto_inventory_delivery=0
+single_field_email_or_phone_order_lookup=0
+right_side_wechat_support_card=0
+application_service_active=0
+nginx_config_valid=0
+full_reverse_proxy_home=0
+database_health=0
+plaintext_bootstrap_password_removed=0
+secret_environment_permissions=0
+local_median_ttfb_under_100ms=0 (0.001618 seconds)
+test_015_admin_direct_qr_upload_and_public_display (test_store.StoreTest.test_015_admin_direct_qr_upload_and_public_display) ... ok
+test_01_public_layout_health_and_headers (test_store.StoreTest.test_01_public_layout_health_and_headers) ... ok
+test_02_admin_inventory_order_delivery_and_secure_lookup (test_store.StoreTest.test_02_admin_inventory_order_delivery_and_secure_lookup) ... ok
+test_035_checkout_redirects_to_fixed_amount_dynamic_qr (test_store.StoreTest.test_035_checkout_redirects_to_fixed_amount_dynamic_qr) ... ok
+test_03_payment_crypto (test_store.StoreTest.test_03_payment_crypto) ... ok
+test_04_signed_alipay_callback_auto_delivery (test_store.StoreTest.test_04_signed_alipay_callback_auto_delivery) ... ok
+test_05_signed_wechat_callback_auto_delivery (test_store.StoreTest.test_05_signed_wechat_callback_auto_delivery) ... ok
+result=PASS
