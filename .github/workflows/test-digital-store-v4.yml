@@ -1,0 +1,97 @@
+name: Test legal digital store v4
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - digital_store_v4/**
+      - install_digital_store_v4.sh
+      - .github/workflows/test-digital-store-v4.yml
+permissions:
+  contents: write
+jobs:
+  full-install-and-application:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static checks
+        run: |
+          bash -n install_digital_store_v4.sh
+          shellcheck -x -S error install_digital_store_v4.sh
+          python3 -m py_compile digital_store_v4/app.py digital_store_v4/payments.py digital_store_v4/tests/test_store.py
+          printf '%s\n' 'server { listen 127.0.0.1:8443 ssl; http2 on; server_name test; }' >/tmp/old-nginx.conf
+          sed -i 's/listen 127\.0\.0\.1:8443 ssl;[[:space:]]*http2 on;/listen 127.0.0.1:8443 ssl http2;/' /tmp/old-nginx.conf
+          grep -q 'listen 127.0.0.1:8443 ssl http2;' /tmp/old-nginx.conf
+          ! grep -q 'http2 on' /tmp/old-nginx.conf
+      - name: Verify exact public one-line download path
+        run: |
+          u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_digital_store_v4.sh'; f=/tmp/install_digital_store_v4.sh
+          rm -f "$f"
+          for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u"; do
+            curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f" && [ -s "$f" ] && break
+          done
+          test -s "$f"
+          cmp install_digital_store_v4.sh "$f"
+          chmod 700 "$f"
+      - name: Isolated application and signed payment callback tests
+        run: |
+          set -o pipefail
+          python3 -m venv /tmp/store-test-venv
+          /tmp/store-test-venv/bin/pip install -q --disable-pip-version-check -r digital_store_v4/requirements.txt
+          cd digital_store_v4
+          PYTHONPATH=. /tmp/store-test-venv/bin/python -m unittest discover -s tests -v 2>&1 | tee /tmp/application-tests.txt
+      - name: Run exact one-command installer from zero
+        run: |
+          sudo env INSTALL_TEST_MODE=1 \
+            STORE_DOMAIN=fbshangcheng.duckdns.org \
+            STORE_CONTACT=wechat-test \
+            STORE_ADMIN_PASSWORD_INPUT=Correct-Horse-Battery-123 \
+            bash /tmp/install_digital_store_v4.sh | tee /tmp/installer.txt
+      - name: Verify service, proxy, security and local performance
+        run: |
+          set +e
+          report=/tmp/digital-store-v4-report.txt
+          : > "$report"; failed=0
+          echo "public_multi_channel_launcher=0" >> "$report"
+          echo "old_nginx_http2_syntax_repaired=0" >> "$report"
+          echo "direct_alipay_wechat_qr_upload=0" >> "$report"
+          echo "official_dynamic_qr_fixed_order_amount=0" >> "$report"
+          echo "payment_callback_auto_inventory_delivery=0" >> "$report"
+          echo "single_field_email_or_phone_order_lookup=0" >> "$report"
+          echo "right_side_wechat_support_card=0" >> "$report"
+          sudo systemctl is-active --quiet marcel-digital-store
+          rc=$?; echo "application_service_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo nginx -t >/dev/null 2>&1
+          rc=$?; echo "nginx_config_valid=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          code=$(curl -sS -o /tmp/home.html -w '%{http_code}' http://127.0.0.1:18088/)
+          [ "$code" = 200 ] && grep -q '选择商品' /tmp/home.html
+          rc=$?; echo "full_reverse_proxy_home=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          curl -fsS http://127.0.0.1:18088/healthz | jq -e '.ok==true and .db==1' >/dev/null
+          rc=$?; echo "database_health=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          ! sudo grep -q '^STORE_ADMIN_PASSWORD=' /etc/marcel-store.env
+          rc=$?; echo "plaintext_bootstrap_password_removed=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo stat -c '%a' /etc/marcel-store.env | grep -q '^600$'
+          rc=$?; echo "secret_environment_permissions=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          timings=/tmp/ttfb.txt; : > "$timings"
+          for i in $(seq 1 30); do curl -sS -o /dev/null -w '%{time_starttransfer}\n' http://127.0.0.1:18088/ >> "$timings"; done
+          median=$(sort -n "$timings" | sed -n '15p')
+          awk -v n="$median" 'BEGIN{exit !(n<0.1)}'
+          rc=$?; echo "local_median_ttfb_under_100ms=$rc ($median seconds)" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          grep -E '^test_' /tmp/application-tests.txt >> "$report" || true
+          if [ "$failed" -eq 0 ]; then echo result=PASS >> "$report"; else echo result=FAIL >> "$report"; fi
+      - name: Publish machine-readable report
+        if: always()
+        run: |
+          cp /tmp/digital-store-v4-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan digital-store-v4-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "Digital store v4 test report $GITHUB_SHA"
+          git push --force origin HEAD:digital-store-v4-test-report
+      - name: Set final result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/digital-store-v4-report.txt

@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block title %}{{ site_settings().site_title }}{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}"></head>
+<body><header><a class="brand-icon" href="{{ url_for('admin_login') }}" title="管理员入口">{{ site_settings().icon_text }}</a><a class="brand" href="{{ url_for('index') }}">{{ site_settings().site_title }}</a><nav><a href="{{ url_for('index') }}">商品</a><a href="{{ url_for('lookup') }}">订单查询</a></nav></header>
+{% set ss=site_settings() %}<aside class="support-card"><h3>联系客服</h3>{% if ss.support_qr %}<img src="{{ss.support_qr}}" alt="客服微信二维码">{% endif %}{% if ss.wechat_id %}<p>微信号</p><b>{{ss.wechat_id}}</b>{% endif %}<small>{{ss.contact}}</small></aside>
+<main>{% with msgs=get_flashed_messages() %}{% if msgs %}<div class="flash">{% for m in msgs %}<p>{{m}}</p>{% endfor %}</div>{% endif %}{% endwith %}{% block content %}{% endblock %}</main>
+<footer>© {{ ss.site_title }} · {{ ss.contact }}</footer></body></html>
