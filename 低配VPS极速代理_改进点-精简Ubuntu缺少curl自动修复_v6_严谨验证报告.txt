@@ -1,0 +1,25 @@
+低配VPS极速代理 v6 验证报告
+验证日期：2026-11-06
+最终结果：PASS
+
+精简系统启动验证
+- ubuntu:24.04 官方最小容器初始确认 curl 不存在
+- apt 自动安装 ca-certificates 与 curl：PASS
+- 从 GitHub 公开地址下载 v6 并进行 Bash 语法校验：PASS
+
+完整安装与故障注入结果
+public_multi_channel_launcher=0
+one_command_install=0
+service_active=0
+self_healing_timer_active=0
+tcp_udp_conflict_auto_avoided=0
+auto_client_official_config_check=0
+continuous_30s_urltest=0
+hy2-broken_automatic_fallback=0
+reality-broken_automatic_fallback=0
+health_command_recovers_stopped_service=0
+HY2真实公网：HTTP 204，首字节0.023588秒，下载508.9 Mbps
+Reality真实公网：HTTP 204，首字节0.060278秒
+result=PASS
+
+本报告证明缺少curl的Ubuntu启动路径、完整安装、双协议、公网访问、自动切换与自愈均通过测试。公网速度仍由用户到VPS的线路、丢包、VPS带宽及目标网站决定。

@@ -1,0 +1,15 @@
+低配VPS极速代理 v6
+改进点：精简 Ubuntu 没有 curl 时自动安装；失败不再执行 exit 关闭 Xshell；完整双协议安装在后台继续。
+
+你的唯一操作
+重新连接 VPS 后，把下面这一整行粘贴到 Xshell，按一次回车：
+
+command -v curl >/dev/null 2>&1 || { export DEBIAN_FRONTEND=noninteractive; apt-get update -y && apt-get install -y --no-install-recommends ca-certificates curl; };if command -v curl >/dev/null 2>&1;then u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v6.sh';f=/tmp/install_fast_proxy_v6.sh;rm -f "$f";for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u";do curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f"&&[ -s "$f" ]&&break;done;if [ -s "$f" ];then bash "$f";else echo '下载失败，请保持窗口打开后重新粘贴同一条命令';fi;else echo '系统软件源无法安装curl，请检查VPS本身是否能联网';fi
+
+说明
+1. 自动安装 curl 和 HTTPS 证书，然后下载并运行完整 v6。
+2. 命令中没有 exit，不会因为下载失败主动退出 SSH。
+3. v6 安装进入 systemd 后台；重启旧代理导致当前 Xshell 断开时，安装仍继续。
+4. 断开后只需重新连接，输入：cat /root/sb-fast-v6-install.done
+5. 显示 0 代表成功；查看节点：sb-fast info
+6. 双协议自动配置：/root/NekoRay-v6-HY2-Reality-自动择优.json
