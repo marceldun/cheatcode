@@ -1,0 +1,13 @@
+public_multi_channel_launcher=0
+one_command_install=0
+service_active=0
+self_healing_timer_active=0
+tcp_udp_conflict_auto_avoided=0
+auto_client_official_config_check=0
+continuous_30s_urltest=0
+hy2-broken_automatic_fallback=0
+reality-broken_automatic_fallback=0
+health_command_recovers_stopped_service=0
+[成功] HY2 真实公网通过：HTTP 204，首字节 0.023588s，下载 508.9 Mbps
+[成功] Reality 真实公网通过：HTTP 204，首字节 0.060278s
+result=PASS
