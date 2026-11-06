@@ -31,6 +31,37 @@ trap cleanup EXIT
 
 [ "$(id -u)" -eq 0 ] || die "请用 root 运行。"
 
+# SSH可能正通过旧代理连接本机。安装过程重启sing-box时前台会断线，
+# 因此完整任务由systemd独立执行，Xshell断开也不会中止。
+if [ "${SB_FAST_V5_WORKER:-0}" != 1 ]; then
+  RUNNER=/root/install_fast_proxy_v5.sh
+  WORKER_ENV=/root/.sb-fast-v5-installer.env
+  INSTALL_LOG=/root/sb-fast-v5-install.log
+  DONE_FILE=/root/sb-fast-v5-install.done
+  install -m 700 "${BASH_SOURCE[0]}" "$RUNNER"
+  {
+    for name in HY2_PORT REALITY_PORT REALITY_DOMAIN ENABLE_OBFS OBFS_TYPE SB_VERSION MEM_KB_OVERRIDE; do
+      [ -z "${!name:-}" ] || printf '%s=%q\n' "$name" "${!name}"
+    done
+  } > "$WORKER_ENV"
+  chmod 600 "$WORKER_ENV"; : > "$INSTALL_LOG"; rm -f "$DONE_FILE"
+  UNIT="sb-fast-v5-installer-$(date +%s)"
+  systemd-run --unit="$UNIT" --property=Type=exec /bin/bash -c \
+    "set -a; . '$WORKER_ENV'; set +a; SB_FAST_V5_WORKER=1 bash '$RUNNER' >>'$INSTALL_LOG' 2>&1; rc=\$?; rm -f '$WORKER_ENV'; echo \$rc >'$DONE_FILE'; exit \$rc" >/dev/null
+  ok "后台安装已启动；即使Xshell断线也会继续。"
+  printf '安装日志：%s\n完成状态：%s（显示0代表成功）\n' "$INSTALL_LOG" "$DONE_FILE"
+  shown=0
+  while [ ! -s "$DONE_FILE" ]; do
+    lines=$(wc -l < "$INSTALL_LOG" 2>/dev/null || echo 0)
+    if [ "$lines" -gt "$shown" ]; then sed -n "$((shown+1)),${lines}p" "$INSTALL_LOG"; shown="$lines"; fi
+    sleep 2
+  done
+  lines=$(wc -l < "$INSTALL_LOG" 2>/dev/null || echo 0)
+  [ "$lines" -le "$shown" ] || sed -n "$((shown+1)),${lines}p" "$INSTALL_LOG"
+  [ "$(cat "$DONE_FILE")" = 0 ] || die "后台安装失败，详情：$INSTALL_LOG"
+  exit 0
+fi
+
 step 1 "检测系统与低配置参数"
 case "$(uname -m)" in
   x86_64|amd64) ARCH=amd64 ;;
