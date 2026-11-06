@@ -1,0 +1,115 @@
+name: Test fast proxy v6 self-healing failover
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_fast_proxy_v6.sh
+      - .github/workflows/test-fast-proxy-v6.yml
+permissions:
+  contents: write
+jobs:
+  full-install-fault-injection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify curl-free Ubuntu 24 bootstrap
+        run: |
+          docker run --rm ubuntu:24.04 bash -lc 'set -e; ! command -v curl; export DEBIAN_FRONTEND=noninteractive; apt-get update -y >/dev/null; apt-get install -y --no-install-recommends ca-certificates curl >/dev/null; curl -fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v6.sh -o /tmp/v6.sh; test -s /tmp/v6.sh; bash -n /tmp/v6.sh'
+      - name: Verify exact public launcher and static checks
+        run: |
+          bash -n install_fast_proxy_v6.sh
+          shellcheck -x -S error install_fast_proxy_v6.sh
+          u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v6.sh'; f=/tmp/downloaded-v6.sh
+          rm -f "$f"
+          for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u"; do
+            curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f" && [ -s "$f" ] && break
+          done
+          test -s "$f"; cmp install_fast_proxy_v6.sh "$f"; chmod 700 "$f"
+      - name: Occupy TCP and UDP 443
+        run: |
+          cat >/tmp/block443.py <<'PY'
+          import socket,time
+          tcp=socket.socket(); tcp.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); tcp.bind(('0.0.0.0',443)); tcp.listen(2)
+          udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); udp.bind(('0.0.0.0',443))
+          time.sleep(1500)
+          PY
+          sudo python3 /tmp/block443.py >/tmp/block443.log 2>&1 &
+          echo $! >/tmp/block443.pid
+      - name: Run complete one-command installer
+        run: |
+          set +e
+          sudo env ENABLE_OBFS=1 MEM_KB_OVERRIDE=262144 bash /tmp/downloaded-v6.sh >/tmp/install-v6.log 2>&1
+          echo $? >/tmp/install-v6.rc
+          exit 0
+      - name: Fault inject each transport and verify automatic fallback
+        run: |
+          set +e
+          report=/tmp/proxy-v6-test-report.txt; : > "$report"; failed=0
+          echo "public_multi_channel_launcher=0" >> "$report"
+          rc=$(cat /tmp/install-v6.rc); echo "one_command_install=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo systemctl is-active --quiet sing-box
+          rc=$?; echo "service_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo systemctl is-active --quiet sb-fast-health-v6.timer
+          rc=$?; echo "self_healing_timer_active=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          hy2=$(sudo jq -r '.inbounds[]|select(.type=="hysteria2")|.listen_port' /etc/sing-box/config.json)
+          reality=$(sudo jq -r '.inbounds[]|select(.type=="vless")|.listen_port' /etc/sing-box/config.json)
+          [ "$hy2" != 443 ] && [ "$reality" != 443 ]
+          rc=$?; echo "tcp_udp_conflict_auto_avoided=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          sudo /etc/sing-box/sing-box check -c '/root/NekoRay-v6-HY2-Reality-自动择优.json'
+          rc=$?; echo "auto_client_official_config_check=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          interval=$(sudo jq -r '.outbounds[]|select(.type=="urltest")|.interval' '/root/NekoRay-v6-HY2-Reality-自动择优.json')
+          [ "$interval" = 30s ]; rc=$?; echo "continuous_30s_urltest=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+
+          make_test() {
+            mode=$1 port=$2
+            sudo jq --arg mode "$mode" --argjson port "$port" '
+              .inbounds[0].listen_port=$port |
+              (.outbounds[]|select(.tag=="HY2-UDP")|.server)="127.0.0.1" |
+              (.outbounds[]|select(.tag=="Reality-TCP")|.server)="127.0.0.1" |
+              if $mode=="hy2-broken" then (.outbounds[]|select(.tag=="HY2-UDP")|.server_port)=1
+              else (.outbounds[]|select(.tag=="Reality-TCP")|.server_port)=1 end |
+              (.outbounds[]|select(.type=="urltest")|.interval)="3s"
+            ' '/root/NekoRay-v6-HY2-Reality-自动择优.json' >"/tmp/$mode.json"
+          }
+          make_test hy2-broken 19110
+          make_test reality-broken 19111
+          for mode in hy2-broken reality-broken; do
+            port=19110; [ "$mode" = reality-broken ] && port=19111
+            sudo /etc/sing-box/sing-box check -c "/tmp/$mode.json"
+            sudo /etc/sing-box/sing-box run -c "/tmp/$mode.json" >"/tmp/$mode.log" 2>&1 & pid=$!
+            ok=1
+            for i in $(seq 1 12); do
+              sleep 2
+              code=$(curl --noproxy '' -sS -o /dev/null -w '%{http_code}' --socks5-hostname 127.0.0.1:$port --max-time 10 https://www.gstatic.com/generate_204 || true)
+              [ "$code" = 204 ] && { ok=0; break; }
+            done
+            sudo kill "$pid" 2>/dev/null || true
+            echo "${mode}_automatic_fallback=$ok" >> "$report"; [ "$ok" -eq 0 ] || failed=1
+          done
+
+          sudo systemctl stop sing-box
+          sudo /usr/local/bin/sb-fast-health-v6
+          sudo systemctl is-active --quiet sing-box
+          rc=$?; echo "health_command_recovers_stopped_service=$rc" >> "$report"; [ "$rc" -eq 0 ] || failed=1
+          grep '真实公网通过' /tmp/install-v6.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' >> "$report" || true
+          if [ "$failed" -eq 0 ]; then echo result=PASS >> "$report"; else
+            echo result=FAIL >> "$report"; echo installer_log: >> "$report"; tail -150 /tmp/install-v6.log >> "$report"
+            cat /tmp/hy2-broken.log /tmp/reality-broken.log >> "$report" 2>/dev/null || true
+          fi
+      - name: Publish report
+        if: always()
+        run: |
+          cp /tmp/proxy-v6-test-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan proxy-v6-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "Proxy v6 test report $GITHUB_SHA"
+          git push --force origin HEAD:proxy-v6-test-report
+      - name: Set final result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/proxy-v6-test-report.txt
