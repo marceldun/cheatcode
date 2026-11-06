@@ -1,0 +1,41 @@
+低配VPS极速代理 v5
+改进点：HY2/Reality持续择优、双通道故障切换、服务端自愈、真实公网测速
+
+v5改进
+1. HY2 UDP最快通道与Reality TCP稳定通道同时运行。
+2. 生成NekoRay自定义配置，每30秒真实访问测试地址，自动使用当前最快可用协议。
+3. HY2故障自动切换Reality；Reality故障自动切换HY2，并中断旧连接使新连接立即生效。
+4. 服务端每2分钟通过双协议完整加密通道检查公网；两种协议连续两次都失败才重启，避免单次抖动误重启。
+5. systemd Restart=always、端口冲突避让、IPv4优先DNS、内存自适应QUIC缓冲、BBR/fq、UDP GRO。
+6. 安装过程转入systemd后台；旧代理重启导致Xshell断开时仍会继续。
+7. 安装时分别验证HY2和Reality公网HTTP、首字节，并测试HY2公网下载速度。
+
+唯一安装命令
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v5.sh';f=/tmp/install_fast_proxy_v5.sh;rm -f "$f";for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u";do curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f"&&[ -s "$f" ]&&break;done;if [ -s "$f" ];then bash "$f";else echo '所有下载通道均失败';exit 1;fi
+
+如果Xshell断开
+不要重跑命令。后台继续执行。重新连接后查看：
+cat /root/sb-fast-v5-install.done
+显示0代表成功。
+完整日志：
+cat /root/sb-fast-v5-install.log
+节点信息：
+sb-fast info
+
+启用自动择优（只做一次）
+1. 安装完成后，用Xshell自带SFTP把下面文件下载到Windows：
+/root/NekoRay-v5-HY2-Reality-自动择优.json
+2. NekoRay中新增“Custom Config/自定义配置”，选择该文件并启动。
+3. 配置在127.0.0.1:2080提供本地代理，每30秒在你的电脑上实测HY2和Reality。
+只导入屏幕输出的单条HY2链接也能使用，但没有双协议自动故障切换。
+
+管理命令
+sb-fast info
+sb-fast status
+sb-fast restart
+sb-fast log
+sb-fast health
+sb-fast auto-config
+
+真实限制
+协议无法突破物理距离、运营商绕路、VPS带宽和目标视频源速度。用户到VPS往返延迟超过100ms时，不可能保证每次0.1秒打开；高丢包线路也不能承诺绝对零卡顿。v5保证的是在已部署的HY2和Reality中持续选择实测更快且可用的通道，并对服务故障自动恢复。
