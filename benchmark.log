@@ -1,0 +1,22 @@
++ printf 'version,round,kind,sequence,http,ttfb_s,total_s,speed_Bps\n'
++ trap cleanup EXIT
++ cleanup
++ ip netns del hyclient
++ true
++ ip link del veth-srv
++ true
++ pkill -f /tmp/bench-client-
++ true
++ ip netns add hyclient
++ ip link add veth-srv type veth peer name veth-cli
++ ip addr add 10.200.0.1/30 dev veth-srv
++ ip link set veth-srv up
++ ip link set veth-cli netns hyclient
++ ip netns exec hyclient ip addr add 10.200.0.2/30 dev veth-cli
++ ip netns exec hyclient ip link set lo up
++ ip netns exec hyclient ip link set veth-cli up
++ modprobe sch_netem
++ tc qdisc add dev veth-srv root netem delay 125ms 10ms loss 1%
++ ip netns exec hyclient tc qdisc add dev veth-cli root netem delay 125ms 10ms loss 1%
++ set +x
+./benchmark_fast_proxy_v6_v7.sh: line 36: version: unbound variable
