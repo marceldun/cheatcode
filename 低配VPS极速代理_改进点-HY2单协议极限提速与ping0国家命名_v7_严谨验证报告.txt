@@ -1,0 +1,36 @@
+HY2单协议极限提速 v7 验证报告
+验证日期：2026-11-07
+最终结果：PASS
+
+complete_install=0
+service_active=0
+self_healing_timer_active=0
+hy2_only_config=0
+no_reality_or_auto_distribution=0
+udp_conflict_auto_avoided=0
+ping0_country_detected=0
+shadowrocket_name_format=0
+encoded_import_link_name=0
+health_recovers_stopped_service=0
+官方内核支持的调优等级：2/2
+三次网页首字节：0.072942、0.082398、0.073738秒
+32MB持续传输首字节：0.083432秒
+32MB持续下载：1048.6 Mbps
+小火箭节点名：🇺🇸 美国 纯净独享IP
+result=PASS
+
+覆盖范围
+- 无curl的Ubuntu 24精简系统启动
+- Bash与ShellCheck静态检查
+- 公开脚本逐字节比对
+- 强制占用UDP 443后自动避让
+- 配置仅有一个Hysteria2入口
+- 确认不存在VLESS、Reality或urltest自动分发
+- sing-box官方配置校验与最高调优等级
+- 连续3次网页HTTP测试
+- 32MB真实公网持续传输
+- ping0.cc真实国家返回
+- 中文、空格和旗帜的URL编码节点名
+- 停止sing-box后健康命令恢复服务
+
+速度数据来自GitHub测试机线路，用于证明代码路径和调优可以正常运行，不代表任意用户线路都达到同一数值。客户端到VPS的物理延迟、丢包、国际出口、VPS限速和视频源速度不能被服务器脚本消除。
