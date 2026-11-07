@@ -30,6 +30,12 @@ jobs:
           s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind(('0.0.0.0',443)); time.sleep(1500)
           PY
           echo $! >/tmp/block443.pid
+          for i in $(seq 1 20); do
+            if sudo ss -uln | grep -qE '[:.]443[[:space:]]'; then exit 0; fi
+            sleep 0.2
+          done
+          echo 'UDP 443 blocker did not bind' >&2
+          exit 1
       - name: Run complete installer
         run: |
           set +e
