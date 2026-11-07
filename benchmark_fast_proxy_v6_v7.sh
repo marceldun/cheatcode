@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_DIR="${OUT_DIR:-/tmp/proxy-v6-v7-benchmark}"
 CSV="$OUT_DIR/raw.csv"
 mkdir -p "$OUT_DIR"
+exec > >(tee "$OUT_DIR/benchmark.log") 2>&1
+set -x
 printf 'version,round,kind,sequence,http,ttfb_s,total_s,speed_Bps\n' >"$CSV"
 
 cleanup(){
@@ -25,8 +27,10 @@ ip link set veth-cli netns hyclient
 ip netns exec hyclient ip addr add 10.200.0.2/30 dev veth-cli
 ip netns exec hyclient ip link set lo up
 ip netns exec hyclient ip link set veth-cli up
-tc qdisc add dev veth-srv root netem delay 125ms 10ms distribution normal loss 1%
-ip netns exec hyclient tc qdisc add dev veth-cli root netem delay 125ms 10ms distribution normal loss 1%
+modprobe sch_netem >/dev/null 2>&1 || true
+tc qdisc add dev veth-srv root netem delay 125ms 10ms loss 1%
+ip netns exec hyclient tc qdisc add dev veth-cli root netem delay 125ms 10ms loss 1%
+set +x
 
 run_install(){
   local version="$1" script="$ROOT_DIR/install_fast_proxy_v${version}.sh" done_file="/root/sb-fast-v${version}-install.done"

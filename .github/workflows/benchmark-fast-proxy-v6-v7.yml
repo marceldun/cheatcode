@@ -28,7 +28,12 @@ jobs:
         if: always()
         run: |
           mkdir -p /tmp/publish
-          cp -a /tmp/proxy-v6-v7-benchmark/. /tmp/publish/ 2>/dev/null || true
+          cp /tmp/proxy-v6-v7-benchmark/REPORT.txt /tmp/publish/ 2>/dev/null || true
+          cp /tmp/proxy-v6-v7-benchmark/raw.csv /tmp/publish/ 2>/dev/null || true
+          cp /tmp/proxy-v6-v7-benchmark/resources-*.txt /tmp/publish/ 2>/dev/null || true
+          if [ ! -s /tmp/proxy-v6-v7-benchmark/REPORT.txt ]; then
+            cp /tmp/proxy-v6-v7-benchmark/benchmark.log /tmp/publish/ 2>/dev/null || true
+          fi
           git config user.name github-actions
           git config user.email github-actions@github.com
           git checkout --orphan proxy-v6-v7-benchmark-report
