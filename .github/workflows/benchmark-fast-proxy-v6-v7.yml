@@ -1,0 +1,44 @@
+name: Benchmark HY2 v6 versus v7 on the same VPS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - benchmark_fast_proxy_v6_v7.sh
+      - .github/workflows/benchmark-fast-proxy-v6-v7.yml
+permissions:
+  contents: write
+jobs:
+  controlled-abab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify scripts
+        run: |
+          bash -n benchmark_fast_proxy_v6_v7.sh
+          shellcheck -x -S error benchmark_fast_proxy_v6_v7.sh
+          for v in 6 7; do
+            curl -fsSL "https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v${v}.sh" -o "/tmp/public-v${v}.sh"
+            cmp "install_fast_proxy_v${v}.sh" "/tmp/public-v${v}.sh"
+          done
+      - name: Run same-host A-B-A-B benchmark
+        run: sudo OUT_DIR=/tmp/proxy-v6-v7-benchmark bash ./benchmark_fast_proxy_v6_v7.sh
+      - name: Publish detailed report and raw measurements
+        if: always()
+        run: |
+          mkdir -p /tmp/publish
+          cp -a /tmp/proxy-v6-v7-benchmark/. /tmp/publish/ 2>/dev/null || true
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan proxy-v6-v7-benchmark-report
+          git rm -rf .
+          cp -a /tmp/publish/. .
+          git add .
+          git commit -m "HY2 v6-v7 same-VPS benchmark $GITHUB_SHA"
+          git push --force origin HEAD:proxy-v6-v7-benchmark-report
+      - name: Require complete report
+        if: always()
+        run: |
+          test -s /tmp/proxy-v6-v7-benchmark/REPORT.txt
+          test "$(wc -l </tmp/proxy-v6-v7-benchmark/raw.csv)" -eq 181
