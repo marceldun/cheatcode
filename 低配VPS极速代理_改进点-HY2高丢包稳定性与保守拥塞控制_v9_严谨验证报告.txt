@@ -1,0 +1,31 @@
+HY2 v9严谨验证报告（2026-11-12）
+result=PASS
+complete_install=0
+sustained_120_requests_and_96MiB=0
+service_active=0
+no_external_restart_timer=0
+hy2_only_config=0
+no_reality_or_auto_distribution=0
+udp_conflict_auto_avoided=0
+ignores_wrong_client_bandwidth=0
+standard_bbr_profile=0
+conservative_stream_window=0
+conservative_connection_window=0
+bounded_concurrent_streams=0
+keepalive_10s=0
+idle_timeout_300s=0
+ping0_country_detected=0
+shadowrocket_name_format=0
+encoded_import_link_name=0
+all_old_external_probes_masked=0
+real_process_crash_auto_recovers=0
+
+官方 sing-box 内核配置校验：2/2
+连续120次公网请求：0失败
+连续传输：3 x 32MiB，0失败
+安装阶段首字节：0.023980、0.019562、0.019452秒
+32MiB首字节：0.114938秒
+持续下载：667.5 Mbps
+进程强制杀死：新PID自动恢复，通过
+
+结论：从零安装、HY2单协议配置、保守拥塞控制、120次持续请求、96MiB传输、v5-v8旧探针永久屏蔽、进程崩溃自动恢复全部通过。测试证明软件配置和服务运行正常，不能代表任意运营商的单条UDP物理路径可被软件保证为绝对100%可用。
