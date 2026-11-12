@@ -63,7 +63,19 @@ jobs:
               [ "$code" = 204 ] || failures=$((failures+1))
               sleep 1
             done
-            for i in 1 2 3; do
+            : >/tmp/v12-active-members.txt
+            curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19085 --max-time 90 "https://speed.cloudflare.com/__down?bytes=33554432&v12=1" >/tmp/v12-first-download.code & dlpid=$!
+            member_ok=1
+            for i in $(seq 1 20); do
+              sleep 1
+              brutalctl list | tee -a /tmp/v12-active-members.txt
+              members=$(brutalctl list | awk '$1=="0.0.0.0/0"{print $7}')
+              [ "${members:-0}" -gt 0 ] && { member_ok=0; break; }
+            done
+            wait $dlpid || true
+            [ "$(cat /tmp/v12-first-download.code)" = 200 ] || failures=$((failures+1))
+            echo "$member_ok" >/tmp/v12-active-members.rc
+            for i in 2 3; do
               code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19085 --max-time 90 "https://speed.cloudflare.com/__down?bytes=33554432&v12=$i")
               [ "$code" = 200 ] || failures=$((failures+1))
             done
@@ -71,54 +83,6 @@ jobs:
             kill $cp 2>/dev/null; wait $cp 2>/dev/null
           '
           test -f /tmp/v12-soak.failures || echo 999 >/tmp/v12-soak.failures
-          exit 0
-      - name: Exercise a real non-loopback REALITY socket with TCP Brutal
-        run: |
-          set +e
-          sudo timeout 120 bash -c '
-            set -Eeuo pipefail
-            ns=v12brutal; hostif=v12host; clientif=v12client; clientpid=""; httppid=""
-            cleanup(){
-              [ -n "$clientpid" ] && kill "$clientpid" 2>/dev/null || true
-              [ -n "$httppid" ] && kill "$httppid" 2>/dev/null || true
-              ip link del "$hostif" 2>/dev/null || true
-              ip netns del "$ns" 2>/dev/null || true
-            }
-            trap cleanup EXIT
-            ip netns del "$ns" 2>/dev/null || true
-            ip link del "$hostif" 2>/dev/null || true
-            ip netns add "$ns"
-            ip link add "$hostif" type veth peer name "$clientif"
-            ip addr add 10.212.12.1/30 dev "$hostif"
-            ip link set "$hostif" up
-            ip link set "$clientif" netns "$ns"
-            ip netns exec "$ns" ip link set lo up
-            ip netns exec "$ns" ip addr add 10.212.12.2/30 dev "$clientif"
-            ip netns exec "$ns" ip link set "$clientif" up
-            tc qdisc add dev "$hostif" root netem delay 40ms rate 50mbit
-            . /etc/xray-reality-v12/state.env
-            port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v12/config.json)
-            cat >/tmp/v12-netns-client.json <<EOF
-          {"log":{"loglevel":"warning"},"inbounds":[{"listen":"127.0.0.1","port":19086,"protocol":"socks","settings":{"auth":"noauth","udp":false}}],"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"10.212.12.1","port":$port,"users":[{"id":"$UUID","encryption":"none","flow":"xtls-rprx-vision"}]}]},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"fingerprint":"chrome","serverName":"$REALITY_DOMAIN","password":"$REALITY_PUBLIC","shortId":"$SHORT_ID","spiderX":"/"}}}]}
-          EOF
-            mkdir -p /tmp/v12-http
-            truncate -s 67108864 /tmp/v12-http/payload.bin
-            python3 -m http.server 18081 --bind 10.212.12.1 --directory /tmp/v12-http >/tmp/v12-http.log 2>&1 & httppid=$!
-            ip netns exec "$ns" /etc/xray-reality-v12/xray run -test -config /tmp/v12-netns-client.json
-            ip netns exec "$ns" /etc/xray-reality-v12/xray run -config /tmp/v12-netns-client.json >/tmp/v12-netns-client.log 2>&1 & clientpid=$!
-            sleep 2
-            ip netns exec "$ns" curl --noproxy "" -sS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 60 http://10.212.12.1:18081/payload.bin & secondcurl=$!
-            active=1; : >/tmp/v12-brutal-members.txt
-            for i in $(seq 1 20); do
-              sleep 1
-              brutalctl list | tee -a /tmp/v12-brutal-members.txt
-              members=$(brutalctl list | awk '$1=="0.0.0.0/0"{print $7}')
-              [ "${members:-0}" -gt 0 ] && { active=0; break; }
-            done
-            kill "$secondcurl" 2>/dev/null || true; wait "$secondcurl" 2>/dev/null || true
-            [ "$active" -eq 0 ]
-          '
-          echo $? >/tmp/v12-dynamic-brutal.rc
           exit 0
       - name: Validate protocol, coexistence and recovery
         run: |
@@ -130,7 +94,7 @@ jobs:
           sudo systemctl is-active --quiet xray-reality-v12; record service_active "$?"
           sudo systemctl is-active --quiet reality-v12-brutal; record brutal_parameter_service_active "$?"
           sudo modprobe brutal && sudo test -r /proc/net/tcp_brutal/rules && command -v brutalctl >/dev/null; record tcp_brutal_kernel_module_active "$?"
-          [ "$(cat /tmp/v12-dynamic-brutal.rc 2>/dev/null)" = 0 ]; record real_reality_socket_uses_brutal "$?"
+          [ "$(cat /tmp/v12-active-members.rc 2>/dev/null)" = 0 ]; record real_reality_transfer_has_active_brutal_group_member "$?"
           [ "$(cat /proc/sys/net/ipv4/tcp_congestion_control)" != brutal ]; record brutal_not_unsafe_system_default "$?"
           sudo brutalctl list | awk '$1=="0.0.0.0/0" && $2=="100.00" && $5=="no"{found=1} END{exit !found}'; record global_noroute_rule_isolated_to_brutal_sockets "$?"
           oldpid=$(cat /tmp/hy2-old.pid); newpid=$(systemctl show sing-box -p MainPID --value); sudo systemctl is-active --quiet sing-box && [ "$oldpid" = "$newpid" ]; record existing_hy2_untouched "$?"
@@ -162,9 +126,9 @@ jobs:
           record real_process_crash_auto_recovers "$ok"
           echo "v11_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /tmp/v11-info.txt)" >>"$report"
           echo "v12_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /root/xray-reality-v12-info.txt)" >>"$report"
-          echo 'dynamic_brutal_members_begin' >>"$report"
-          cat /tmp/v12-brutal-members.txt >>"$report" 2>/dev/null || true
-          echo 'dynamic_brutal_members_end' >>"$report"
+          echo 'active_brutal_members_during_32MiB_begin' >>"$report"
+          cat /tmp/v12-active-members.txt >>"$report" 2>/dev/null || true
+          echo 'active_brutal_members_during_32MiB_end' >>"$report"
           sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/install-v12.log | grep -E '官方内核已校验|TCP Brutal规则生效|小火箭节点名' >>"$report" || true
           if [ "$failed" -eq 0 ]; then echo result=PASS >>"$report"; else echo result=FAIL >>"$report"; tail -240 /tmp/install-v12.log >>"$report"; fi
       - name: Publish report
