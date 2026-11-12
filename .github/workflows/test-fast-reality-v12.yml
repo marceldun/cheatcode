@@ -51,13 +51,12 @@ jobs:
           sudo timeout 300 bash -c '
             . /etc/xray-reality-v12/state.env
             port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v12/config.json)
-            brutalctl add 127.0.0.1/32 100 gain=20 noroute >/dev/null || exit 9
             cat >/tmp/v12-soak-client.json <<EOF
           {"log":{"loglevel":"warning"},"inbounds":[{"listen":"127.0.0.1","port":19085,"protocol":"socks","settings":{"auth":"noauth","udp":false}}],"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"127.0.0.1","port":$port,"users":[{"id":"$UUID","encryption":"none","flow":"xtls-rprx-vision"}]}]},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"fingerprint":"chrome","serverName":"$REALITY_DOMAIN","password":"$REALITY_PUBLIC","shortId":"$SHORT_ID","spiderX":"/"}}}]}
           EOF
             /etc/xray-reality-v12/xray run -test -config /tmp/v12-soak-client.json || exit 10
             /etc/xray-reality-v12/xray run -config /tmp/v12-soak-client.json >/tmp/v12-soak-client.log 2>&1 &
-            cp=$!; trap "kill $cp 2>/dev/null || true; brutalctl del 127.0.0.1/32 >/dev/null 2>&1 || true" EXIT; sleep 2
+            cp=$!; trap "kill $cp 2>/dev/null || true" EXIT; sleep 2
             failures=0
             for i in $(seq 1 120); do
               code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19085 --max-time 15 "https://www.gstatic.com/generate_204?v12=$i")
@@ -82,7 +81,6 @@ jobs:
             cleanup(){
               [ -n "$clientpid" ] && kill "$clientpid" 2>/dev/null || true
               [ -n "$httppid" ] && kill "$httppid" 2>/dev/null || true
-              brutalctl del 10.212.12.2/32 >/dev/null 2>&1 || true
               ip link del "$hostif" 2>/dev/null || true
               ip netns del "$ns" 2>/dev/null || true
             }
@@ -109,17 +107,12 @@ jobs:
             ip netns exec "$ns" /etc/xray-reality-v12/xray run -test -config /tmp/v12-netns-client.json
             ip netns exec "$ns" /etc/xray-reality-v12/xray run -config /tmp/v12-netns-client.json >/tmp/v12-netns-client.log 2>&1 & clientpid=$!
             sleep 2
-            ip netns exec "$ns" curl --noproxy "" -sS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 60 http://10.212.12.1:18081/payload.bin & firstcurl=$!
-            found=1
-            for i in $(seq 1 20); do sleep 1; brutalctl list | grep -Fq "10.212.12.2/32" && { found=0; break; }; done
-            kill "$firstcurl" 2>/dev/null || true; wait "$firstcurl" 2>/dev/null || true
-            [ "$found" -eq 0 ]
             ip netns exec "$ns" curl --noproxy "" -sS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 60 http://10.212.12.1:18081/payload.bin & secondcurl=$!
             active=1; : >/tmp/v12-brutal-members.txt
             for i in $(seq 1 20); do
               sleep 1
               brutalctl list | tee -a /tmp/v12-brutal-members.txt
-              members=$(brutalctl list | awk '$1=="10.212.12.2/32"{print $7}')
+              members=$(brutalctl list | awk '$1=="0.0.0.0/0"{print $7}')
               [ "${members:-0}" -gt 0 ] && { active=0; break; }
             done
             kill "$secondcurl" 2>/dev/null || true; wait "$secondcurl" 2>/dev/null || true
@@ -135,10 +128,11 @@ jobs:
           rc=$(cat /tmp/install-v12.rc); record complete_install "$rc"
           soak=$(cat /tmp/v12-soak.failures); [ "$soak" -eq 0 ]; record sustained_120_requests_and_96MiB "$?"
           sudo systemctl is-active --quiet xray-reality-v12; record service_active "$?"
-          sudo systemctl is-active --quiet reality-v12-brutal-watcher; record brutal_watcher_active "$?"
+          sudo systemctl is-active --quiet reality-v12-brutal; record brutal_parameter_service_active "$?"
           sudo modprobe brutal && sudo test -r /proc/net/tcp_brutal/rules && command -v brutalctl >/dev/null; record tcp_brutal_kernel_module_active "$?"
           [ "$(cat /tmp/v12-dynamic-brutal.rc 2>/dev/null)" = 0 ]; record real_reality_socket_uses_brutal "$?"
           [ "$(cat /proc/sys/net/ipv4/tcp_congestion_control)" != brutal ]; record brutal_not_unsafe_system_default "$?"
+          sudo brutalctl list | awk '$1=="0.0.0.0/0" && $2=="100.00" && $5=="no"{found=1} END{exit !found}'; record global_noroute_rule_isolated_to_brutal_sockets "$?"
           oldpid=$(cat /tmp/hy2-old.pid); newpid=$(systemctl show sing-box -p MainPID --value); sudo systemctl is-active --quiet sing-box && [ "$oldpid" = "$newpid" ]; record existing_hy2_untouched "$?"
           sudo test -f /etc/xray-reality-v11/config.json && sudo test -f /root/xray-reality-v11-info.txt; record v11_files_preserved "$?"
           ! sudo systemctl is-active --quiet xray-reality-v11; record v11_runtime_replaced_without_port_conflict "$?"

@@ -27,7 +27,7 @@ step(){ printf '\n%b[%s/8] %s%b\n' "$C" "$1" "$2" "$N"; }
 ok(){ printf '%b[成功] %s%b\n' "$G" "$*" "$N"; }
 warn(){ printf '%b[提示] %s%b\n' "$Y" "$*" "$N"; }
 die(){ printf '%b[失败] %s%b\n' "$R" "$*" "$N" >&2; exit 1; }
-cleanup(){ local rc=$?; jobs -pr | xargs -r kill 2>/dev/null || true; command -v brutalctl >/dev/null 2>&1 && brutalctl del 127.0.0.1/32 >/dev/null 2>&1 || true; rm -rf "$TMP"; exit "$rc"; }
+cleanup(){ local rc=$?; jobs -pr | xargs -r kill 2>/dev/null || true; rm -rf "$TMP"; exit "$rc"; }
 trap cleanup EXIT
 
 [ "$(id -u)" -eq 0 ] || die "请使用root账号执行。"
@@ -233,7 +233,7 @@ if [ -n "$IFACE" ] && command -v ethtool >/dev/null 2>&1; then
   if ethtool -K "$IFACE" gro on gso on tso on >/dev/null 2>&1; then OFFLOAD=enabled; fi
 fi
 
-# TCP Brutal v2 不是系统默认算法；只对识别到的 REALITY 客户端 IP 创建目标路由。
+# TCP Brutal v2 不是系统默认算法；只有明确选择 brutal 的 REALITY 监听 socket 会使用下面的 noroute 参数规则。
 KERNEL_MM="$(uname -r | grep -oE '^[0-9]+\.[0-9]+' || true)"
 [ -n "$KERNEL_MM" ] && [ "$(printf '5.10\n%s\n' "$KERNEL_MM" | sort -V | head -n1)" = 5.10 ] || \
   die "TCP Brutal v2 需要 Linux 5.10+；当前内核 $(uname -r)。v11 仍保持运行。"
@@ -249,52 +249,36 @@ TERM=dumb bash "$TMP/install-tcp-brutal.sh" --local "$TMP/tcp-brutal.dkms.tar.gz
   die "TCP Brutal 内核模块安装失败（通常是 VPS 没有与当前内核匹配的 headers）。v11 仍保持运行。"
 modprobe brutal || die "TCP Brutal 模块无法加载；v11 仍保持运行。"
 command -v brutalctl >/dev/null 2>&1 && [ -r /proc/net/tcp_brutal/rules ] || die "TCP Brutal 安装后验证失败。"
+brutalctl add 0.0.0.0/0 "$REALITY_BRUTAL_MBPS" gain=20 noroute >/dev/null || die "TCP Brutal REALITY全局参数规则无法建立。"
+brutalctl list | awk '$1=="0.0.0.0/0" && $5=="no"{found=1} END{exit !found}' || die "TCP Brutal noroute规则验证失败。"
 
-install -d -m 700 /etc/xray-reality-v12 /var/lib/xray-reality-v12
+install -d -m 700 /etc/xray-reality-v12
 cat >/etc/xray-reality-v12/brutal.env <<EOF
 REALITY_PORT=$REALITY_PORT
 REALITY_BRUTAL_MBPS=$REALITY_BRUTAL_MBPS
 EOF
 chmod 600 /etc/xray-reality-v12/brutal.env
-cat >/usr/local/sbin/reality-v12-brutal-watcher <<'WATCHER'
-#!/usr/bin/env bash
-set -u
-STATE=/run/reality-v12-brutal-seen
-mkdir -p /run
-[ -s /proc/net/tcp_brutal/rules ] || : >"$STATE"
-touch "$STATE"
-peer_ip() {
-  case "$1" in
-    \[*\]:*) local x="${1#\[}"; printf '%s\n' "${x%%\]:*}" ;;
-    *:*) printf '%s\n' "${1%:*}" ;;
-  esac
-}
-while :; do
-  while IFS= read -r peer; do
-    [ -n "$peer" ] || continue
-    ip="$(peer_ip "$peer")"
-    case "$ip" in ''|127.*|::1|0.0.0.0) continue ;; esac
-    case "$ip" in *:*) prefix="$ip/128" ;; *) prefix="$ip/32" ;; esac
-    grep -Fqx "$prefix" "$STATE" && continue
-    if /usr/local/bin/brutalctl add "$prefix" "$REALITY_BRUTAL_MBPS" gain=20; then
-      printf '%s\n' "$prefix" >>"$STATE"
-      # 第一条连接建立时规则尚不存在；只终止该端口到该客户的旧连接，促使客户端立即自动重连。
-      timeout 2 ss -K state established sport = :"$REALITY_PORT" dst "$ip" >/dev/null 2>&1 || true
-      echo "REALITY client $prefix now uses TCP Brutal ${REALITY_BRUTAL_MBPS}Mbps; first connection was recycled"
-    fi
-  done < <(ss -Htn state established "sport = :$REALITY_PORT" 2>/dev/null | awk '{print $4}' | sort -u)
-  sleep 1
-done
-WATCHER
-chmod 755 /usr/local/sbin/reality-v12-brutal-watcher
-ok "基线拥塞控制：$CC；客户端丢包补偿：TCP Brutal ${REALITY_BRUTAL_MBPS}Mbps；窗口：$((SOCKBUF/1024/1024))MB；GRO/GSO/TSO：$OFFLOAD"
+ok "基线拥塞控制：$CC；REALITY专用丢包补偿：TCP Brutal ${REALITY_BRUTAL_MBPS}Mbps noroute；窗口：$((SOCKBUF/1024/1024))MB；GRO/GSO/TSO：$OFFLOAD"
 
 step 6 "启动 REALITY 并启用真实进程崩溃自愈"
+cat >/etc/systemd/system/reality-v12-brutal.service <<EOF
+[Unit]
+Description=TCP Brutal parameters exclusively consumed by REALITY v12 sockets
+After=network-online.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/brutalctl add 0.0.0.0/0 $REALITY_BRUTAL_MBPS gain=20 noroute
+ExecStop=-/usr/local/bin/brutalctl del 0.0.0.0/0
+[Install]
+WantedBy=multi-user.target
+EOF
 cat >/etc/systemd/system/xray-reality-v12.service <<EOF
 [Unit]
 Description=Xray VLESS REALITY Vision with TCP Brutal v12
-After=network-online.target
+After=network-online.target reality-v12-brutal.service
 Wants=network-online.target
+Requires=reality-v12-brutal.service
 [Service]
 Type=simple
 User=root
@@ -310,23 +294,9 @@ Environment=XRAY_RAY_BUFFER_SIZE=0
 [Install]
 WantedBy=multi-user.target
 EOF
-cat >/etc/systemd/system/reality-v12-brutal-watcher.service <<EOF
-[Unit]
-Description=Apply TCP Brutal only to REALITY v12 client addresses
-After=network-online.target xray-reality-v12.service
-Requires=xray-reality-v12.service
-[Service]
-Type=simple
-EnvironmentFile=/etc/xray-reality-v12/brutal.env
-ExecStart=/usr/local/sbin/reality-v12-brutal-watcher
-Restart=always
-RestartSec=1
-Nice=-5
-[Install]
-WantedBy=multi-user.target
-EOF
 systemctl daemon-reload
-systemctl enable xray-reality-v12 reality-v12-brutal-watcher >/dev/null 2>&1
+systemctl disable --now reality-v12-brutal-watcher >/dev/null 2>&1 || true
+systemctl enable reality-v12-brutal xray-reality-v12 >/dev/null 2>&1
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -qi active; then ufw allow "$REALITY_PORT/tcp" >/dev/null || true; fi
 if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then firewall-cmd --permanent --add-port="$REALITY_PORT/tcp" >/dev/null || true; firewall-cmd --reload >/dev/null || true; fi
 OLD_ACTIVE_SERVICE=""
@@ -334,20 +304,16 @@ for old_service in xray-reality-v11 xray-reality-v10; do
   if systemctl is-active --quiet "$old_service" 2>/dev/null; then OLD_ACTIVE_SERVICE="$old_service"; systemctl disable --now "$old_service" >/dev/null 2>&1 || true; break; fi
 done
 restore_old(){ if [ -n "$OLD_ACTIVE_SERVICE" ]; then systemctl enable "$OLD_ACTIVE_SERVICE" >/dev/null 2>&1 || true; systemctl start "$OLD_ACTIVE_SERVICE" >/dev/null 2>&1 || true; fi; }
+if ! systemctl restart reality-v12-brutal; then restore_old; die "TCP Brutal REALITY专用参数服务启动失败，已恢复旧版。"; fi
 if ! systemctl restart xray-reality-v12; then
   restore_old
   die "REALITY v12启动失败，已恢复旧版运行。"
 fi
 sleep 2
 systemctl is-active --quiet xray-reality-v12 || { journalctl -u xray-reality-v12 -n 80 --no-pager >&2; restore_old; die "REALITY v12启动失败，已恢复旧版运行。"; }
-if ! systemctl restart reality-v12-brutal-watcher; then
-  systemctl disable --now xray-reality-v12 >/dev/null 2>&1 || true
-  restore_old
-  die "TCP Brutal 客户端识别服务启动失败，已恢复旧版运行。"
-fi
-systemctl is-active --quiet reality-v12-brutal-watcher || { systemctl disable --now xray-reality-v12 >/dev/null 2>&1 || true; restore_old; die "TCP Brutal 客户端识别服务未运行，已恢复旧版。"; }
+systemctl is-active --quiet reality-v12-brutal || { systemctl disable --now xray-reality-v12 >/dev/null 2>&1 || true; restore_old; die "TCP Brutal REALITY专用参数服务未运行，已恢复旧版。"; }
 ss -ltn | grep -qE "[:.]${REALITY_PORT}[[:space:]]" || die "REALITY TCP端口没有监听。"
-ok "REALITY v12正在监听TCP $REALITY_PORT；TCP Brutal监听器正常；v11文件原样保留，HY2未删除、未停止"
+ok "REALITY v12正在监听TCP $REALITY_PORT；TCP Brutal noroute参数服务正常；v11文件原样保留，HY2未删除、未停止"
 
 step 7 "执行 TCP Brutal 内核规则、REALITY 网页和持续传输测试"
 TEST_PREFIX="127.0.0.1/32"
@@ -431,10 +397,10 @@ cat >/usr/local/bin/reality-fast <<'EOF'
 #!/usr/bin/env bash
 case "${1:-info}" in
   info) cat /root/xray-reality-v12-info.txt ;;
-  status) systemctl status xray-reality-v12 reality-v12-brutal-watcher --no-pager -l ;;
-  restart) systemctl restart xray-reality-v12 reality-v12-brutal-watcher && systemctl is-active xray-reality-v12 reality-v12-brutal-watcher ;;
-  log) journalctl -u xray-reality-v12 -u reality-v12-brutal-watcher -n 100 --no-pager ;;
-  health) systemctl is-active xray-reality-v12 reality-v12-brutal-watcher; ss -ltnp | grep xray; brutalctl list ;;
+  status) systemctl status xray-reality-v12 reality-v12-brutal --no-pager -l ;;
+  restart) systemctl restart reality-v12-brutal xray-reality-v12 && systemctl is-active reality-v12-brutal xray-reality-v12 ;;
+  log) journalctl -u xray-reality-v12 -u reality-v12-brutal -n 100 --no-pager ;;
+  health) systemctl is-active xray-reality-v12 reality-v12-brutal; ss -ltnp | grep xray; brutalctl list ;;
   *) echo '用法：reality-fast {info|status|restart|log|health}' ;;
 esac
 EOF
