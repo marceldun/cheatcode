@@ -1,0 +1,116 @@
+name: Test REALITY Vision v10 complete installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_fast_reality_v10.sh
+      - .github/workflows/test-fast-reality-v10.yml
+permissions:
+  contents: write
+jobs:
+  full-install-and-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static and curl-free bootstrap checks
+        run: |
+          bash -n install_fast_reality_v10.sh
+          shellcheck -x -S error install_fast_reality_v10.sh
+          docker run --rm ubuntu:24.04 bash -lc 'set -e; ! command -v curl; export DEBIAN_FRONTEND=noninteractive; apt-get update -y >/dev/null; apt-get install -y --no-install-recommends ca-certificates curl >/dev/null; curl -fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_reality_v10.sh -o /tmp/v10.sh; test -s /tmp/v10.sh; bash -n /tmp/v10.sh'
+          curl -4fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_reality_v10.sh -o /tmp/downloaded-v10.sh
+          cmp install_fast_reality_v10.sh /tmp/downloaded-v10.sh
+      - name: Simulate existing HY2 and occupy TCP 443
+        run: |
+          sudo tee /etc/systemd/system/sing-box.service >/dev/null <<'EOF'
+          [Unit]
+          Description=existing HY2 sentinel
+          [Service]
+          ExecStart=/usr/bin/sleep infinity
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl start sing-box
+          systemctl show sing-box -p MainPID --value >/tmp/hy2-old.pid
+          sudo python3 - <<'PY' >/tmp/block443.log 2>&1 &
+          import socket,time
+          s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('0.0.0.0',443)); s.listen()
+          open('/tmp/block443.ready','w').close(); time.sleep(1800)
+          PY
+          echo $! >/tmp/block443.pid
+          for i in $(seq 1 20); do [ -f /tmp/block443.ready ] && exit 0; sleep 0.2; done
+          exit 1
+      - name: Run complete installer
+        run: |
+          set +e
+          sudo bash /tmp/downloaded-v10.sh >/tmp/install-v10.log 2>&1
+          echo $? >/tmp/install-v10.rc
+          exit 0
+      - name: Run a two-minute sustained REALITY session
+        run: |
+          set +e
+          sudo bash -c '
+            . /etc/xray-reality-v10/state.env
+            port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v10/config.json)
+            cat >/tmp/v10-soak-client.json <<EOF
+          {"log":{"loglevel":"warning"},"inbounds":[{"listen":"127.0.0.1","port":19085,"protocol":"socks","settings":{"auth":"noauth","udp":false}}],"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"127.0.0.1","port":$port,"users":[{"id":"$UUID","encryption":"none","flow":"xtls-rprx-vision"}]}]},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"fingerprint":"chrome","serverName":"$REALITY_DOMAIN","password":"$REALITY_PUBLIC","shortId":"$SHORT_ID","spiderX":"/"}}}]}
+          EOF
+            /etc/xray-reality-v10/xray run -test -config /tmp/v10-soak-client.json || exit 10
+            /etc/xray-reality-v10/xray run -config /tmp/v10-soak-client.json >/tmp/v10-soak-client.log 2>&1 &
+            cp=$!; trap "kill $cp 2>/dev/null || true" EXIT; sleep 2
+            failures=0
+            for i in $(seq 1 120); do
+              code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19085 --max-time 15 "https://www.gstatic.com/generate_204?v10=$i")
+              [ "$code" = 204 ] || failures=$((failures+1))
+              sleep 1
+            done
+            for i in 1 2 3; do
+              code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19085 --max-time 90 "https://speed.cloudflare.com/__down?bytes=33554432&v10=$i")
+              [ "$code" = 200 ] || failures=$((failures+1))
+            done
+            echo "$failures" >/tmp/v10-soak.failures
+            kill $cp 2>/dev/null; wait $cp 2>/dev/null
+          '
+          test -f /tmp/v10-soak.failures || echo 999 >/tmp/v10-soak.failures
+          exit 0
+      - name: Validate protocol, coexistence and recovery
+        run: |
+          set +e
+          report=/tmp/reality-v10-test-report.txt; : >"$report"; failed=0
+          record(){ echo "$1=$2" >>"$report"; [ "$2" -eq 0 ] || failed=1; }
+          rc=$(cat /tmp/install-v10.rc); record complete_install "$rc"
+          soak=$(cat /tmp/v10-soak.failures); [ "$soak" -eq 0 ]; record sustained_120_requests_and_96MiB "$?"
+          sudo systemctl is-active --quiet xray-reality-v10; record service_active "$?"
+          oldpid=$(cat /tmp/hy2-old.pid); newpid=$(systemctl show sing-box -p MainPID --value); sudo systemctl is-active --quiet sing-box && [ "$oldpid" = "$newpid" ]; record existing_hy2_untouched "$?"
+          protocol=$(sudo jq -r '.inbounds[0].protocol' /etc/xray-reality-v10/config.json); flow=$(sudo jq -r '.inbounds[0].settings.clients[0].flow' /etc/xray-reality-v10/config.json)
+          [ "$protocol" = vless ] && [ "$flow" = xtls-rprx-vision ]; record vless_vision_enabled "$?"
+          [ "$(sudo jq -r '.inbounds[0].streamSettings.network' /etc/xray-reality-v10/config.json)" = raw ]; record raw_tcp_transport "$?"
+          [ "$(sudo jq -r '.inbounds[0].streamSettings.security' /etc/xray-reality-v10/config.json)" = reality ]; record reality_security_enabled "$?"
+          [ "$(sudo jq -r '.inbounds[0].streamSettings.sockopt.tcpFastOpen' /etc/xray-reality-v10/config.json)" = true ]; record tcp_fast_open_enabled "$?"
+          port=$(sudo jq -r '.inbounds[0].port' /etc/xray-reality-v10/config.json); [ "$port" != 443 ]; record tcp_conflict_auto_avoided "$?"
+          ! sudo systemctl list-unit-files --no-legend | grep -q '^reality-fast-health.*timer'; record no_external_restart_probe "$?"
+          sudo grep -q '^ping0.cc位置：..' /root/xray-reality-v10-info.txt; record ping0_country_detected "$?"
+          sudo grep -q '节点名称：.* 纯净独享IP' /root/xray-reality-v10-info.txt; record node_name_format "$?"
+          sudo grep -q '^vless://' /root/xray-reality-v10-info.txt && sudo grep -q 'security=reality' /root/xray-reality-v10-info.txt && sudo grep -q 'flow=xtls-rprx-vision' /root/xray-reality-v10-info.txt; record import_link_complete "$?"
+          pid=$(systemctl show xray-reality-v10 -p MainPID --value); sudo kill -9 "$pid"
+          ok=1; for i in $(seq 1 20); do sleep 1; sudo systemctl is-active --quiet xray-reality-v10 && { np=$(systemctl show xray-reality-v10 -p MainPID --value); [ "$np" != "$pid" ] && { ok=0; break; }; }; done
+          record real_process_crash_auto_recovers "$ok"
+          sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/install-v10.log | grep -E '官方内核已校验|5次网页通过|小火箭节点名' >>"$report" || true
+          if [ "$failed" -eq 0 ]; then echo result=PASS >>"$report"; else echo result=FAIL >>"$report"; tail -200 /tmp/install-v10.log >>"$report"; fi
+      - name: Publish report
+        if: always()
+        run: |
+          cp /tmp/reality-v10-test-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan reality-v10-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "REALITY v10 test report $GITHUB_SHA"
+          git push --force origin HEAD:reality-v10-test-report
+      - name: Set final result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/reality-v10-test-report.txt
