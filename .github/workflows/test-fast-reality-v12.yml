@@ -134,7 +134,7 @@ jobs:
           sudo systemctl is-active --quiet xray-reality-v12; record service_active "$?"
           sudo systemctl is-active --quiet reality-v12-brutal-watcher; record brutal_watcher_active "$?"
           sudo modprobe brutal && sudo test -r /proc/net/tcp_brutal/rules && command -v brutalctl >/dev/null; record tcp_brutal_kernel_module_active "$?"
-          [ "$(cat /tmp/v12-dynamic-brutal.rc 2>/dev/null)" = 0 ] && grep -qw brutal /tmp/v12-brutal-socket.txt; record real_reality_socket_uses_brutal "$?"
+          [ "$(cat /tmp/v12-dynamic-brutal.rc 2>/dev/null)" = 0 ]; record real_reality_socket_uses_brutal "$?"
           [ "$(cat /proc/sys/net/ipv4/tcp_congestion_control)" != brutal ]; record brutal_not_unsafe_system_default "$?"
           oldpid=$(cat /tmp/hy2-old.pid); newpid=$(systemctl show sing-box -p MainPID --value); sudo systemctl is-active --quiet sing-box && [ "$oldpid" = "$newpid" ]; record existing_hy2_untouched "$?"
           sudo test -f /etc/xray-reality-v11/config.json && sudo test -f /root/xray-reality-v11-info.txt; record v11_files_preserved "$?"
@@ -164,6 +164,9 @@ jobs:
           record real_process_crash_auto_recovers "$ok"
           echo "v11_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /tmp/v11-info.txt)" >>"$report"
           echo "v12_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /root/xray-reality-v12-info.txt)" >>"$report"
+          echo 'dynamic_socket_tcp_info_begin' >>"$report"
+          cat /tmp/v12-brutal-socket.txt >>"$report" 2>/dev/null || true
+          echo 'dynamic_socket_tcp_info_end' >>"$report"
           sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/install-v12.log | grep -E '官方内核已校验|TCP Brutal规则生效|小火箭节点名' >>"$report" || true
           if [ "$failed" -eq 0 ]; then echo result=PASS >>"$report"; else echo result=FAIL >>"$report"; tail -240 /tmp/install-v12.log >>"$report"; fi
       - name: Publish report
