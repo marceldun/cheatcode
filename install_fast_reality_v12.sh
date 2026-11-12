@@ -27,7 +27,7 @@ step(){ printf '\n%b[%s/8] %s%b\n' "$C" "$1" "$2" "$N"; }
 ok(){ printf '%b[成功] %s%b\n' "$G" "$*" "$N"; }
 warn(){ printf '%b[提示] %s%b\n' "$Y" "$*" "$N"; }
 die(){ printf '%b[失败] %s%b\n' "$R" "$*" "$N" >&2; exit 1; }
-cleanup(){ local rc=$?; jobs -pr | xargs -r kill 2>/dev/null || true; rm -rf "$TMP"; exit "$rc"; }
+cleanup(){ local rc=$?; jobs -pr | xargs -r kill 2>/dev/null || true; command -v brutalctl >/dev/null 2>&1 && brutalctl del 127.0.0.1/32 >/dev/null 2>&1 || true; rm -rf "$TMP"; exit "$rc"; }
 trap cleanup EXIT
 
 [ "$(id -u)" -eq 0 ] || die "请使用root账号执行。"
@@ -179,7 +179,7 @@ cat >"$CONF" <<EOF
     "streamSettings":{
       "network":"raw","security":"reality",
       "realitySettings":{"show":false,"target":"$REALITY_DOMAIN:443","xver":0,"serverNames":["$REALITY_DOMAIN"],"privateKey":"$REALITY_PRIVATE","shortIds":["$SHORT_ID"]},
-      "sockopt":{"tcpFastOpen":true,"tcpKeepAliveIdle":60,"tcpKeepAliveInterval":15,"tcpUserTimeout":60000}
+      "sockopt":{"tcpFastOpen":true,"tcpKeepAliveIdle":60,"tcpKeepAliveInterval":15,"tcpUserTimeout":60000,"tcpCongestion":"brutal"}
     }
   }],
   "outbounds":[{
@@ -278,7 +278,9 @@ while :; do
     grep -Fqx "$prefix" "$STATE" && continue
     if /usr/local/bin/brutalctl add "$prefix" "$REALITY_BRUTAL_MBPS" gain=20; then
       printf '%s\n' "$prefix" >>"$STATE"
-      echo "REALITY client $prefix now uses TCP Brutal ${REALITY_BRUTAL_MBPS}Mbps; new connections take effect"
+      # 第一条连接建立时规则尚不存在；只终止该端口到该客户的旧连接，促使客户端立即自动重连。
+      ss -K state established sport = :"$REALITY_PORT" dst "$ip" >/dev/null 2>&1 || true
+      echo "REALITY client $prefix now uses TCP Brutal ${REALITY_BRUTAL_MBPS}Mbps; first connection was recycled"
     fi
   done < <(ss -Htn state established "sport = :$REALITY_PORT" 2>/dev/null | awk '{print $4}' | sort -u)
   sleep 1
@@ -348,10 +350,9 @@ ss -ltn | grep -qE "[:.]${REALITY_PORT}[[:space:]]" || die "REALITY TCP端口没
 ok "REALITY v12正在监听TCP $REALITY_PORT；TCP Brutal监听器正常；v11文件原样保留，HY2未删除、未停止"
 
 step 7 "执行 TCP Brutal 内核规则、REALITY 网页和持续传输测试"
-TEST_PREFIX="192.0.2.1/32"
-brutalctl add "$TEST_PREFIX" "$REALITY_BRUTAL_MBPS" gain=20 >/dev/null || die "TCP Brutal测试规则无法建立。"
+TEST_PREFIX="127.0.0.1/32"
+brutalctl add "$TEST_PREFIX" "$REALITY_BRUTAL_MBPS" gain=20 noroute >/dev/null || die "TCP Brutal测试规则无法建立。"
 brutalctl list | grep -Fq "$TEST_PREFIX" || { brutalctl del "$TEST_PREFIX" >/dev/null 2>&1 || true; die "TCP Brutal测试规则未生效。"; }
-brutalctl del "$TEST_PREFIX" >/dev/null || die "TCP Brutal测试规则无法清理。"
 cat >"$TMP/client.json" <<EOF
 {
   "log":{"loglevel":"warning"},
@@ -377,6 +378,7 @@ DL_CODE="$(printf '%s' "$DL" | awk '{print $1}')"; DL_TTFB="$(printf '%s' "$DL" 
 [ "$DL_CODE" = 200 ] || die "REALITY 32MB持续传输失败（HTTP=$DL_CODE）。"
 THROUGHPUT="$(awk -v b="$SPEED" 'BEGIN{printf "%.1f Mbps",b*8/1000000}')"
 kill "$CLIENT_PID" 2>/dev/null || true; wait "$CLIENT_PID" 2>/dev/null || true
+brutalctl del "$TEST_PREFIX" >/dev/null || die "TCP Brutal回环测试规则无法清理。"
 ok "TCP Brutal规则生效并完整清理；5次网页通过；首字节 ${TTFB_LIST}s；32MB持续下载 $THROUGHPUT"
 
 step 8 "通过 ping0.cc 确认国家并生成节点"

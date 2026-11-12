@@ -146,6 +146,7 @@ jobs:
           [ "$(sudo jq -r '.inbounds[0].streamSettings.network' /etc/xray-reality-v12/config.json)" = raw ]; record raw_tcp_transport "$?"
           [ "$(sudo jq -r '.inbounds[0].streamSettings.security' /etc/xray-reality-v12/config.json)" = reality ]; record reality_security_enabled "$?"
           [ "$(sudo jq -r '.inbounds[0].streamSettings.sockopt.tcpFastOpen' /etc/xray-reality-v12/config.json)" = true ]; record tcp_fast_open_enabled "$?"
+          [ "$(sudo jq -r '.inbounds[0].streamSettings.sockopt.tcpCongestion' /etc/xray-reality-v12/config.json)" = brutal ]; record reality_listener_explicitly_uses_brutal "$?"
           [ "$(sudo jq -r '.policy.levels["0"].bufferSize' /etc/xray-reality-v12/config.json)" = 0 ]; record vision_zero_buffer_policy "$?"
           [ "$(cat /proc/sys/net/ipv4/tcp_notsent_lowat)" = 4294967295 ]; record restrictive_16k_send_limit_removed "$?"
           [ "$(cat /proc/sys/net/core/rmem_max)" -ge 67108864 ]; record expanded_tcp_window "$?"
