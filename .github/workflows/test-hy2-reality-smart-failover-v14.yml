@@ -26,10 +26,14 @@ jobs:
           sudo SMART_V14_WORKER=1 bash install_hy2_reality_smart_failover_v14.sh >/tmp/v14.log 2>&1
           echo $? >/tmp/v14.rc
           exit 0
-      - name: Validate three server services
+      - name: Validate complete installer exit status
         run: |
           test "$(cat /tmp/v14.rc)" = 0 || { tail -300 /tmp/v14.log; exit 1; }
+      - name: Validate HY2 server service
+        run: |
           sudo systemctl is-active --quiet sing-box
+      - name: Validate REALITY server services
+        run: |
           sudo systemctl is-active --quiet xray-reality-v13
           sudo systemctl is-active --quiet reality-v13-brutal
       - name: Validate permanent removal of restart probes
