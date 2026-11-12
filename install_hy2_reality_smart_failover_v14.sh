@@ -141,7 +141,8 @@ jq -n \
       {"name":"HY2-PRIMARY","type":"hysteria2","server":$server,"port":$hy2_port,
        "password":$hy2_password,"sni":"addons.mozilla.org","skip-cert-verify":true,"alpn":["h3"]},
       {"name":"REALITY-BACKUP","type":"vless","server":$server,"port":$reality_port,
-       "uuid":$uuid,"network":"tcp","tls":true,"udp":true,"flow":"xtls-rprx-vision",
+       "uuid":$uuid,"encryption":"","network":"tcp","tls":true,"udp":true,
+       "flow":"xtls-rprx-vision","packet-encoding":"xudp","skip-cert-verify":true,
        "servername":$sni,"client-fingerprint":"chrome",
        "reality-opts":{"public-key":$public_key,"short-id":$short_id}}
     ],

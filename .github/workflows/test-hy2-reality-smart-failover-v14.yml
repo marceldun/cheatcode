@@ -49,6 +49,8 @@ jobs:
       - name: Prove HY2 is initially selected
         run: |
           docker run -d --name mihomo-v14 --network host -v /tmp/failover.yaml:/root/.config/mihomo/config.yaml:ro metacubex/mihomo:latest
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:9090/version >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS 'http://127.0.0.1:9090/proxies/REALITY-BACKUP/delay?url=https%3A%2F%2Fwww.gstatic.com%2Fgenerate_204&timeout=10000' | jq -e '.delay>0'
           selected(){ curl -fsS http://127.0.0.1:9090/proxies/SMART-AUTO | jq -r .now; }
           wait_for(){ expected=$1; for i in $(seq 1 20); do [ "$(selected 2>/dev/null || true)" = "$expected" ] && return 0; sleep 2; done; return 1; }
           wait_for HY2-PRIMARY || { docker logs mihomo-v14; exit 1; }
