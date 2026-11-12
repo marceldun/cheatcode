@@ -97,7 +97,7 @@ chmod 700 "$WORK_DIR"
 ZIP_NAME="Xray-linux-${XRAY_ARCH}.zip"
 BASE_URL="https://github.com/XTLS/Xray-core/releases/latest/download"
 PREFIXES=("" "https://ghfast.top/" "https://gh-proxy.com/")
-download(){ local url=$1 dst=$2 p part="${dst}.part"; for p in "${PREFIXES[@]}"; do
+download(){ local url dst p part; url=$1; dst=$2; part="${dst}.part"; for p in "${PREFIXES[@]}"; do
   if curl -A 'reality-fast-v10' -fL --connect-timeout 10 --max-time 600 --retry 3 --retry-delay 2 -C - -o "$part" "${p}${url}" 2>/dev/null && [ -s "$part" ]; then mv -f "$part" "$dst"; return 0; fi
 done; return 1; }
 download "$BASE_URL/$ZIP_NAME" "$TMP/$ZIP_NAME" || die "Xray官方内核下载失败。"
