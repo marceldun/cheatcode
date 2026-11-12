@@ -46,22 +46,32 @@ jobs:
       - name: Validate generated configuration with real Mihomo core
         run: |
           docker run --rm --network host -v /tmp/failover.yaml:/root/.config/mihomo/config.yaml:ro metacubex/mihomo:latest -t
-      - name: Prove HY2 failure, REALITY takeover and HY2 failback
+      - name: Prove HY2 is initially selected
         run: |
           docker run -d --name mihomo-v14 --network host -v /tmp/failover.yaml:/root/.config/mihomo/config.yaml:ro metacubex/mihomo:latest
-          trap 'docker rm -f mihomo-v14 >/dev/null 2>&1 || true' EXIT
           selected(){ curl -fsS http://127.0.0.1:9090/proxies/SMART-AUTO | jq -r .now; }
           wait_for(){ expected=$1; for i in $(seq 1 20); do [ "$(selected 2>/dev/null || true)" = "$expected" ] && return 0; sleep 2; done; return 1; }
-          wait_for HY2-PRIMARY
+          wait_for HY2-PRIMARY || { docker logs mihomo-v14; exit 1; }
           echo initial=HY2-PRIMARY
+      - name: Prove REALITY takes over when HY2 stops
+        run: |
+          selected(){ curl -fsS http://127.0.0.1:9090/proxies/SMART-AUTO | jq -r .now; }
+          wait_for(){ expected=$1; for i in $(seq 1 20); do [ "$(selected 2>/dev/null || true)" = "$expected" ] && return 0; sleep 2; done; return 1; }
           sudo systemctl stop sing-box
-          wait_for REALITY-BACKUP
+          wait_for REALITY-BACKUP || { docker logs mihomo-v14; exit 1; }
           echo after_hy2_failure=REALITY-BACKUP
           code=$(curl --noproxy '' -sS -o /dev/null -w '%{http_code}' --socks5-hostname 127.0.0.1:2080 --max-time 20 https://www.gstatic.com/generate_204)
           test "$code" = 204
+      - name: Prove automatic failback after HY2 recovers
+        run: |
+          selected(){ curl -fsS http://127.0.0.1:9090/proxies/SMART-AUTO | jq -r .now; }
+          wait_for(){ expected=$1; for i in $(seq 1 20); do [ "$(selected 2>/dev/null || true)" = "$expected" ] && return 0; sleep 2; done; return 1; }
           sudo systemctl start sing-box
-          wait_for HY2-PRIMARY
+          wait_for HY2-PRIMARY || { docker logs mihomo-v14; exit 1; }
           echo after_hy2_recovery=HY2-PRIMARY
           code=$(curl --noproxy '' -sS -o /dev/null -w '%{http_code}' --socks5-hostname 127.0.0.1:2080 --max-time 20 https://www.gstatic.com/generate_204)
           test "$code" = 204
           echo result=PASS
+      - name: Clean test client
+        if: always()
+        run: docker rm -f mihomo-v14 >/dev/null 2>&1 || true
