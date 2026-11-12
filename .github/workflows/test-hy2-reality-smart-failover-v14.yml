@@ -26,17 +26,21 @@ jobs:
           sudo SMART_V14_WORKER=1 bash install_hy2_reality_smart_failover_v14.sh >/tmp/v14.log 2>&1
           echo $? >/tmp/v14.rc
           exit 0
-      - name: Validate services and client configuration
+      - name: Validate three server services
         run: |
           test "$(cat /tmp/v14.rc)" = 0 || { tail -300 /tmp/v14.log; exit 1; }
           sudo systemctl is-active --quiet sing-box
           sudo systemctl is-active --quiet xray-reality-v13
           sudo systemctl is-active --quiet reality-v13-brutal
+      - name: Validate permanent removal of restart probes
+        run: |
           ! systemctl list-timers --all --no-legend | grep -q sb-fast-health
           for v in v5 v6 v7 v8; do
             test "$(readlink /etc/systemd/system/sb-fast-health-$v.timer)" = /dev/null
             test "$(readlink /etc/systemd/system/sb-fast-health-$v.service)" = /dev/null
           done
+      - name: Validate generated fallback configuration with Mihomo
+        run: |
           sudo cp /etc/hy2-reality-smart-v14/mihomo-hy2-first-failover.yaml /tmp/failover.yaml
           sudo chmod 644 /tmp/failover.yaml
           jq '(.proxies[].server)="127.0.0.1"' /tmp/failover.yaml >/tmp/failover-local.yaml
