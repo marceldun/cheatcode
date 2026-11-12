@@ -39,12 +39,15 @@ jobs:
             test "$(readlink /etc/systemd/system/sb-fast-health-$v.timer)" = /dev/null
             test "$(readlink /etc/systemd/system/sb-fast-health-$v.service)" = /dev/null
           done
-      - name: Validate generated fallback configuration with Mihomo
+      - name: Prepare generated fallback configuration
         run: |
           sudo cp /etc/hy2-reality-smart-v14/mihomo-hy2-first-failover.yaml /tmp/failover.yaml
           sudo chmod 644 /tmp/failover.yaml
+          jq -e '."proxy-groups"[0].type=="fallback" and ."proxy-groups"[0].proxies==["HY2-PRIMARY","REALITY-BACKUP"]' /tmp/failover.yaml
           jq '(.proxies[].server)="127.0.0.1"' /tmp/failover.yaml >/tmp/failover-local.yaml
           mv /tmp/failover-local.yaml /tmp/failover.yaml
+      - name: Validate generated configuration with real Mihomo core
+        run: |
           docker run --rm --network host -v /tmp/failover.yaml:/root/.config/mihomo/config.yaml:ro metacubex/mihomo:latest -t
       - name: Prove HY2 failure, REALITY takeover and HY2 failback
         run: |
