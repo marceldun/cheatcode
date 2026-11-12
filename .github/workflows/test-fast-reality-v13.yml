@@ -1,0 +1,76 @@
+name: Test REALITY v13 obsolete-kernel recovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_fast_reality_v13.sh
+      - .github/workflows/test-fast-reality-v13.yml
+permissions:
+  contents: read
+jobs:
+  full-upgrade-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static validation
+        run: |
+          bash -n install_fast_reality_v13.sh
+          shellcheck -x -S error install_fast_reality_v13.sh
+          grep -q 'linux-generic linux-headers-generic' install_fast_reality_v13.sh
+          grep -q 'reality-v13-resume.service' install_fast_reality_v13.sh
+          grep -q 'systemctl reboot' install_fast_reality_v13.sh
+          grep -q '避免循环' install_fast_reality_v13.sh
+      - name: Install v12 baseline and preserve its state
+        run: |
+          sudo bash install_fast_reality_v12.sh >/tmp/v12.log 2>&1
+          sudo systemctl is-active --quiet xray-reality-v12
+          sudo cp /etc/xray-reality-v12/state.env /tmp/v12-state.env
+          sudo cp /etc/xray-reality-v12/config.json /tmp/v12-config.json
+      - name: Run complete v13 upgrade
+        run: |
+          set +e
+          sudo bash install_fast_reality_v13.sh >/tmp/v13.log 2>&1
+          echo $? >/tmp/v13.rc
+          exit 0
+      - name: Sustained REALITY transfer
+        run: |
+          sudo bash -c '
+            set -e
+            . /etc/xray-reality-v13/state.env
+            port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v13/config.json)
+            cat >/tmp/v13-client.json <<EOF
+          {"log":{"loglevel":"warning"},"inbounds":[{"listen":"127.0.0.1","port":19086,"protocol":"socks","settings":{"auth":"noauth","udp":false}}],"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"127.0.0.1","port":$port,"users":[{"id":"$UUID","encryption":"none","flow":"xtls-rprx-vision"}]}]},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"fingerprint":"chrome","serverName":"$REALITY_DOMAIN","password":"$REALITY_PUBLIC","shortId":"$SHORT_ID","spiderX":"/"}}}]}
+          EOF
+            /etc/xray-reality-v13/xray run -test -config /tmp/v13-client.json
+            /etc/xray-reality-v13/xray run -config /tmp/v13-client.json >/tmp/v13-client.log 2>&1 &
+            cp=$!; trap "kill $cp 2>/dev/null || true" EXIT; sleep 2
+            for i in $(seq 1 60); do
+              code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19086 --max-time 15 "https://www.gstatic.com/generate_204?v13=$i")
+              [ "$code" = 204 ]
+            done
+            curl --noproxy "" -fsS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 120 "https://speed.cloudflare.com/__down?bytes=67108864&v13=1"
+          '
+      - name: Validate upgrade, protocol and recovery
+        run: |
+          test "$(cat /tmp/v13.rc)" = 0
+          sudo systemctl is-active --quiet xray-reality-v13
+          sudo systemctl is-active --quiet reality-v13-brutal
+          sudo test -r /proc/net/tcp_brutal/rules
+          sudo brutalctl list | awk '$1=="0.0.0.0/0" && $5=="no"{ok=1} END{exit !ok}'
+          sudo test -f /etc/xray-reality-v12/config.json
+          ! sudo systemctl is-active --quiet xray-reality-v12
+          old_uuid=$(sudo sed -n "s/^UUID='\(.*\)'/\1/p" /tmp/v12-state.env)
+          new_uuid=$(sudo sed -n "s/^UUID='\(.*\)'/\1/p" /etc/xray-reality-v13/state.env)
+          test -n "$new_uuid" && test "$old_uuid" = "$new_uuid"
+          test "$(sudo jq -r '.inbounds[0].streamSettings.security' /etc/xray-reality-v13/config.json)" = reality
+          test "$(sudo jq -r '.inbounds[0].streamSettings.sockopt.tcpCongestion' /etc/xray-reality-v13/config.json)" = brutal
+          test "$(cat /proc/sys/net/ipv4/tcp_congestion_control)" != brutal
+          pid=$(systemctl show xray-reality-v13 -p MainPID --value)
+          sudo kill -9 "$pid"
+          ok=1
+          for i in $(seq 1 20); do sleep 1; np=$(systemctl show xray-reality-v13 -p MainPID --value); if sudo systemctl is-active --quiet xray-reality-v13 && [ "$np" -gt 1 ] && [ "$np" != "$pid" ]; then ok=0; break; fi; done
+          test "$ok" = 0
+          echo result=PASS
+          grep -E '官方内核已校验|TCP Brutal规则生效|小火箭节点名' /tmp/v13.log
