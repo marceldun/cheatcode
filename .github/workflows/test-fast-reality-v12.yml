@@ -72,6 +72,58 @@ jobs:
           '
           test -f /tmp/v12-soak.failures || echo 999 >/tmp/v12-soak.failures
           exit 0
+      - name: Exercise a real non-loopback REALITY socket with TCP Brutal
+        run: |
+          set +e
+          sudo bash -c '
+            set -Eeuo pipefail
+            ns=v12brutal; hostif=v12host; clientif=v12client; clientpid=""; httppid=""
+            cleanup(){
+              [ -n "$clientpid" ] && kill "$clientpid" 2>/dev/null || true
+              [ -n "$httppid" ] && kill "$httppid" 2>/dev/null || true
+              brutalctl del 10.212.12.2/32 >/dev/null 2>&1 || true
+              ip link del "$hostif" 2>/dev/null || true
+              ip netns del "$ns" 2>/dev/null || true
+            }
+            trap cleanup EXIT
+            ip netns del "$ns" 2>/dev/null || true
+            ip link del "$hostif" 2>/dev/null || true
+            ip netns add "$ns"
+            ip link add "$hostif" type veth peer name "$clientif"
+            ip addr add 10.212.12.1/30 dev "$hostif"
+            ip link set "$hostif" up
+            ip link set "$clientif" netns "$ns"
+            ip netns exec "$ns" ip link set lo up
+            ip netns exec "$ns" ip addr add 10.212.12.2/30 dev "$clientif"
+            ip netns exec "$ns" ip link set "$clientif" up
+            tc qdisc add dev "$hostif" root netem delay 40ms rate 50mbit
+            . /etc/xray-reality-v12/state.env
+            port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v12/config.json)
+            cat >/tmp/v12-netns-client.json <<EOF
+          {"log":{"loglevel":"warning"},"inbounds":[{"listen":"127.0.0.1","port":19086,"protocol":"socks","settings":{"auth":"noauth","udp":false}}],"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"10.212.12.1","port":$port,"users":[{"id":"$UUID","encryption":"none","flow":"xtls-rprx-vision"}]}]},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"fingerprint":"chrome","serverName":"$REALITY_DOMAIN","password":"$REALITY_PUBLIC","shortId":"$SHORT_ID","spiderX":"/"}}}]}
+          EOF
+            mkdir -p /tmp/v12-http
+            truncate -s 67108864 /tmp/v12-http/payload.bin
+            python3 -m http.server 18081 --bind 10.212.12.1 --directory /tmp/v12-http >/tmp/v12-http.log 2>&1 & httppid=$!
+            ip netns exec "$ns" /etc/xray-reality-v12/xray run -test -config /tmp/v12-netns-client.json
+            ip netns exec "$ns" /etc/xray-reality-v12/xray run -config /tmp/v12-netns-client.json >/tmp/v12-netns-client.log 2>&1 & clientpid=$!
+            sleep 2
+            ip netns exec "$ns" curl --noproxy "" -sS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 60 http://10.212.12.1:18081/payload.bin & firstcurl=$!
+            found=1
+            for i in $(seq 1 20); do sleep 1; brutalctl list | grep -Fq "10.212.12.2/32" && { found=0; break; }; done
+            kill "$firstcurl" 2>/dev/null || true; wait "$firstcurl" 2>/dev/null || true
+            [ "$found" -eq 0 ]
+            ip netns exec "$ns" curl --noproxy "" -sS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 60 http://10.212.12.1:18081/payload.bin & secondcurl=$!
+            active=1
+            for i in $(seq 1 20); do
+              sleep 1
+              ss -tin state established sport = :"$port" dst 10.212.12.2 | tee /tmp/v12-brutal-socket.txt | grep -qw brutal && { active=0; break; }
+            done
+            kill "$secondcurl" 2>/dev/null || true; wait "$secondcurl" 2>/dev/null || true
+            [ "$active" -eq 0 ]
+          '
+          echo $? >/tmp/v12-dynamic-brutal.rc
+          exit 0
       - name: Validate protocol, coexistence and recovery
         run: |
           set +e
@@ -82,6 +134,7 @@ jobs:
           sudo systemctl is-active --quiet xray-reality-v12; record service_active "$?"
           sudo systemctl is-active --quiet reality-v12-brutal-watcher; record brutal_watcher_active "$?"
           sudo modprobe brutal && sudo test -r /proc/net/tcp_brutal/rules && command -v brutalctl >/dev/null; record tcp_brutal_kernel_module_active "$?"
+          [ "$(cat /tmp/v12-dynamic-brutal.rc 2>/dev/null)" = 0 ] && grep -qw brutal /tmp/v12-brutal-socket.txt; record real_reality_socket_uses_brutal "$?"
           [ "$(cat /proc/sys/net/ipv4/tcp_congestion_control)" != brutal ]; record brutal_not_unsafe_system_default "$?"
           oldpid=$(cat /tmp/hy2-old.pid); newpid=$(systemctl show sing-box -p MainPID --value); sudo systemctl is-active --quiet sing-box && [ "$oldpid" = "$newpid" ]; record existing_hy2_untouched "$?"
           sudo test -f /etc/xray-reality-v11/config.json && sudo test -f /root/xray-reality-v11-info.txt; record v11_files_preserved "$?"
