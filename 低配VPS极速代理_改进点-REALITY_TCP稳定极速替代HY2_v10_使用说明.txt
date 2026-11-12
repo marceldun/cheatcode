@@ -1,0 +1,26 @@
+REALITY 极速稳定版 v10（完整新建副本）
+协议组合：VLESS + RAW/TCP + REALITY + XTLS Vision
+改进点：针对当前HY2/UDP回程不稳定，新建TCP 443 REALITY节点；HY2 v9和以前版本原样保留，不删除、不停止。
+
+唯一安装命令：
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_reality_v10.sh';f=/tmp/install_fast_reality_v10.sh;rm -f "$f";if ! command -v curl >/dev/null 2>&1&&! command -v wget >/dev/null 2>&1;then if command -v apt-get >/dev/null 2>&1;then apt-get update -y&&apt-get install -y curl ca-certificates;elif command -v apk >/dev/null 2>&1;then apk add --no-cache curl ca-certificates;elif command -v dnf >/dev/null 2>&1;then dnf -y install curl ca-certificates;else yum -y install curl ca-certificates;fi;fi;for x in "$u" "https://ghfast.top/$u" "https://gh-proxy.com/$u";do if command -v curl >/dev/null 2>&1;then curl -4fL --connect-timeout 10 --max-time 180 --retry 3 "$x" -o "$f";else wget -T 180 -O "$f" "$x";fi&&[ -s "$f" ]&&break;done;[ -s "$f" ]&&bash "$f"||echo '下载失败，请重新粘贴同一命令'
+
+安装后查看节点：
+reality-fast info
+
+如果Xshell断开，后台会继续，不要重复安装。重连后查看：
+cat /root/reality-v10-install.done
+显示0代表安装、鉴权和真实传输测试全部成功。
+
+v10功能：
+- 使用Xray-core官方最新内核，下载后校验官方SHA256。
+- VLESS + RAW/TCP + REALITY + XTLS Vision，不使用WebSocket、gRPC等额外封装。
+- 自动选择TLS建连最快的REALITY伪装站。
+- 启用标准BBR、fq、TCP Fast Open、TCP MTU探测、低延迟发送队列和保活。
+- 根据VPS内存自动设置TCP缓冲，避免低配VPS因缓冲过大而OOM。
+- HY2的UDP 443与REALITY的TCP 443可以同时运行。
+- TCP 443被其他服务占用时自动选择备用端口，不擅自删除旧服务。
+- 不创建外部网站定时重启探针；仅Xray进程真实退出时自动恢复。
+- 通过ping0.cc检测国家，生成小火箭/Throne可直接导入的VLESS链接和二维码。
+
+注意：脚本可将REALITY服务端配置为低开销高性能模式，但无法改变VPS带宽、客户端运营商、物理距离和中间路由，因此不能诚实承诺任意线路绝对100%最快或零故障。

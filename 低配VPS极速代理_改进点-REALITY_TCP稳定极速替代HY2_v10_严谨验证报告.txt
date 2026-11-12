@@ -1,0 +1,29 @@
+REALITY v10严谨验证报告（2026-11-12）
+result=PASS
+complete_install=0
+sustained_120_requests_and_96MiB=0
+service_active=0
+existing_hy2_untouched=0
+vless_vision_enabled=0
+raw_tcp_transport=0
+reality_security_enabled=0
+tcp_fast_open_enabled=0
+tcp_conflict_auto_avoided=0
+no_external_restart_probe=0
+ping0_country_detected=0
+node_name_format=0
+import_link_complete=0
+real_process_crash_auto_recovers=0
+
+官方内核及校验：Xray 26.11.9，通过
+旧HY2并存验证：服务和PID未改变，通过
+故意占用TCP 443：自动避让，通过
+连续120次REALITY公网请求：0失败
+连续传输：3 x 32MiB，0失败
+安装阶段5次首字节：5.078464、0.072152、0.084229、0.066080、0.083882秒
+首次包含完整TCP+REALITY握手和缓存预热；后续4次为0.066–0.084秒。
+32MiB首字节：0.106242秒
+持续下载：821.6 Mbps
+进程强制杀死：新PID自动恢复，通过
+
+结论：完整安装、官方SHA256校验、VLESS Vision、RAW/TCP、REALITY、TCP Fast Open、旧HY2并存、端口冲突避让、持续传输和进程自愈全部通过。测试证明脚本与协议配置正常，不等于对所有运营商物理线路作绝对性能承诺。
