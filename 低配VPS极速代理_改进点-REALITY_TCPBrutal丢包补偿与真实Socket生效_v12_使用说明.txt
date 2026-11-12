@@ -1,0 +1,36 @@
+REALITY 极限丢包补偿 v12
+================================
+
+用途
+----
+v11 在 VPS 本机无丢包测试已可达 1Gbps 以上，但客户端仍然慢，说明限制来自高延迟/丢包 TCP 线路。v12 保留 v11 的 VLESS + RAW/TCP + REALITY + XTLS Vision，增加 TCP Brutal v2 丢包补偿。
+
+一键安装
+--------
+把下面整行复制到 VPS 的 root 窗口，只执行这一次：
+
+u='https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_reality_v12.sh';f=/tmp/install_fast_reality_v12.sh;if command -v curl >/dev/null 2>&1;then curl -4fL --connect-timeout 10 --max-time 600 --retry 5 "$u" -o "$f";elif command -v wget >/dev/null 2>&1;then wget -4 -O "$f" "$u";else apt-get update -y&&apt-get install -y curl&&curl -4fL --retry 5 "$u" -o "$f";fi&&test -s "$f"&&bash "$f"
+
+安装成功后
+----------
+1. 屏幕最后会直接输出 vless:// 节点链接。
+2. 旧 v11 文件原样保留，HY2 文件和进程不删除。
+3. 系统其他 TCP 流量继续使用 BBR；只有 REALITY 监听器和已识别的客户端使用 Brutal。
+4. 首次识别一个新客户端 IP 后，会尝试在 2 秒内回收旧连接，使新连接立即获得 100Mbps Brutal 丢包补偿。
+
+实际限制
+--------
+TCP Brutal 能改变高延迟、丢包线路的发送行为，但不能凭空创造 VPS 带宽，也不能改变运营商的物理路由。如果 VPS 本身端口只有 10Mbps，或线路完全不可达，任何协议脚本都无法保证 100Mbps。
+
+兼容性
+------
+- Linux 5.10 或更新内核。
+- VPS 软件源必须提供与当前内核完全匹配的 headers，用于 DKMS 编译官方 TCP Brutal v2.0.1 模块。
+- 模块或 headers 不兼容时，v12 会在停止 v11 之前报错，不会把普通 BBR 伪装成 Brutal 安装成功。
+
+管理命令（仅需要查看时使用）
+------------------------
+reality-fast info
+reality-fast status
+reality-fast health
+

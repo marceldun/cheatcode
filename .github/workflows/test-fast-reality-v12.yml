@@ -48,15 +48,16 @@ jobs:
       - name: Run a two-minute sustained REALITY session
         run: |
           set +e
-          sudo timeout 120 bash -c '
+          sudo timeout 300 bash -c '
             . /etc/xray-reality-v12/state.env
             port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v12/config.json)
+            brutalctl add 127.0.0.1/32 100 gain=20 noroute >/dev/null || exit 9
             cat >/tmp/v12-soak-client.json <<EOF
           {"log":{"loglevel":"warning"},"inbounds":[{"listen":"127.0.0.1","port":19085,"protocol":"socks","settings":{"auth":"noauth","udp":false}}],"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"127.0.0.1","port":$port,"users":[{"id":"$UUID","encryption":"none","flow":"xtls-rprx-vision"}]}]},"streamSettings":{"network":"raw","security":"reality","realitySettings":{"fingerprint":"chrome","serverName":"$REALITY_DOMAIN","password":"$REALITY_PUBLIC","shortId":"$SHORT_ID","spiderX":"/"}}}]}
           EOF
             /etc/xray-reality-v12/xray run -test -config /tmp/v12-soak-client.json || exit 10
             /etc/xray-reality-v12/xray run -config /tmp/v12-soak-client.json >/tmp/v12-soak-client.log 2>&1 &
-            cp=$!; trap "kill $cp 2>/dev/null || true" EXIT; sleep 2
+            cp=$!; trap "kill $cp 2>/dev/null || true; brutalctl del 127.0.0.1/32 >/dev/null 2>&1 || true" EXIT; sleep 2
             failures=0
             for i in $(seq 1 120); do
               code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19085 --max-time 15 "https://www.gstatic.com/generate_204?v12=$i")
@@ -75,7 +76,7 @@ jobs:
       - name: Exercise a real non-loopback REALITY socket with TCP Brutal
         run: |
           set +e
-          sudo bash -c '
+          sudo timeout 120 bash -c '
             set -Eeuo pipefail
             ns=v12brutal; hostif=v12host; clientif=v12client; clientpid=""; httppid=""
             cleanup(){
@@ -114,10 +115,12 @@ jobs:
             kill "$firstcurl" 2>/dev/null || true; wait "$firstcurl" 2>/dev/null || true
             [ "$found" -eq 0 ]
             ip netns exec "$ns" curl --noproxy "" -sS -o /dev/null --socks5-hostname 127.0.0.1:19086 --max-time 60 http://10.212.12.1:18081/payload.bin & secondcurl=$!
-            active=1
+            active=1; : >/tmp/v12-brutal-members.txt
             for i in $(seq 1 20); do
               sleep 1
-              (timeout 3 ss -tin state established sport = :"$port" dst 10.212.12.2 || true) | tee /tmp/v12-brutal-socket.txt | grep -qw brutal && { active=0; break; }
+              brutalctl list | tee -a /tmp/v12-brutal-members.txt
+              members=$(brutalctl list | awk '$1=="10.212.12.2/32"{print $7}')
+              [ "${members:-0}" -gt 0 ] && { active=0; break; }
             done
             kill "$secondcurl" 2>/dev/null || true; wait "$secondcurl" 2>/dev/null || true
             [ "$active" -eq 0 ]
@@ -165,9 +168,9 @@ jobs:
           record real_process_crash_auto_recovers "$ok"
           echo "v11_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /tmp/v11-info.txt)" >>"$report"
           echo "v12_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /root/xray-reality-v12-info.txt)" >>"$report"
-          echo 'dynamic_socket_tcp_info_begin' >>"$report"
-          cat /tmp/v12-brutal-socket.txt >>"$report" 2>/dev/null || true
-          echo 'dynamic_socket_tcp_info_end' >>"$report"
+          echo 'dynamic_brutal_members_begin' >>"$report"
+          cat /tmp/v12-brutal-members.txt >>"$report" 2>/dev/null || true
+          echo 'dynamic_brutal_members_end' >>"$report"
           sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/install-v12.log | grep -E '官方内核已校验|TCP Brutal规则生效|小火箭节点名' >>"$report" || true
           if [ "$failed" -eq 0 ]; then echo result=PASS >>"$report"; else echo result=FAIL >>"$report"; tail -240 /tmp/install-v12.log >>"$report"; fi
       - name: Publish report
