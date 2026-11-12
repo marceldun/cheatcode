@@ -144,7 +144,7 @@ jq -n \
        "uuid":$uuid,"encryption":"","network":"tcp","tls":true,"udp":true,
        "flow":"xtls-rprx-vision","packet-encoding":"xudp","skip-cert-verify":true,
        "servername":$sni,"client-fingerprint":"chrome",
-       "reality-opts":{"public-key":$public_key,"short-id":$short_id}}
+       "reality-opts":{"public-key":$public_key,"short-id":$short_id,"support-x25519mlkem768":true}}
     ],
     "proxy-groups":[
       {"name":"SMART-AUTO","type":"fallback","proxies":["HY2-PRIMARY","REALITY-BACKUP"],
