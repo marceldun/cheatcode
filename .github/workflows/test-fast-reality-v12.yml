@@ -69,7 +69,7 @@ jobs:
             for i in $(seq 1 20); do
               sleep 1
               brutalctl list | tee -a /tmp/v12-active-members.txt
-              members=$(brutalctl list | awk '$1=="0.0.0.0/0"{print $7}')
+              members=$(brutalctl list | awk "\$1==\"0.0.0.0/0\"{print \$7}")
               [ "${members:-0}" -gt 0 ] && { member_ok=0; break; }
             done
             wait $dlpid || true
