@@ -129,48 +129,29 @@ actual_reality_port="$(jq -r '.inbounds[0].port' /etc/xray-reality-v13/config.js
 public_ip="$(curl -4fsS --max-time 10 https://api.ipify.org)"
 mkdir -p "$ROOT_DIR"
 chmod 700 "$ROOT_DIR"
-cat >"$ROOT_DIR/mihomo-hy2-first-failover.yaml" <<EOF
-mixed-port: 2080
-allow-lan: false
-mode: rule
-log-level: info
-ipv6: false
-external-controller: 127.0.0.1:9090
-proxies:
-  - name: HY2-PRIMARY
-    type: hysteria2
-    server: $public_ip
-    port: $actual_hy2_port
-    password: '$HY2_PASSWORD'
-    sni: addons.mozilla.org
-    skip-cert-verify: true
-    alpn: [h3]
-  - name: REALITY-BACKUP
-    type: vless
-    server: $public_ip
-    port: $actual_reality_port
-    uuid: '$UUID'
-    network: tcp
-    tls: true
-    udp: true
-    flow: xtls-rprx-vision
-    servername: '$REALITY_DOMAIN'
-    client-fingerprint: chrome
-    reality-opts:
-      public-key: '$REALITY_PUBLIC'
-      short-id: '$SHORT_ID'
-proxy-groups:
-  - name: SMART-AUTO
-    type: fallback
-    proxies: [HY2-PRIMARY, REALITY-BACKUP]
-    url: https://www.gstatic.com/generate_204
-    interval: 3
-    timeout: 3000
-    lazy: false
-    max-failed-times: 1
-rules:
-  - MATCH,SMART-AUTO
-EOF
+jq -n \
+  --arg server "$public_ip" --arg hy2_password "$HY2_PASSWORD" \
+  --arg uuid "$UUID" --arg sni "$REALITY_DOMAIN" \
+  --arg public_key "$REALITY_PUBLIC" --arg short_id "$SHORT_ID" \
+  --argjson hy2_port "$actual_hy2_port" --argjson reality_port "$actual_reality_port" \
+  '{
+    "mixed-port":2080,"allow-lan":false,"mode":"rule","log-level":"info","ipv6":false,
+    "external-controller":"127.0.0.1:9090",
+    "proxies":[
+      {"name":"HY2-PRIMARY","type":"hysteria2","server":$server,"port":$hy2_port,
+       "password":$hy2_password,"sni":"addons.mozilla.org","skip-cert-verify":true,"alpn":["h3"]},
+      {"name":"REALITY-BACKUP","type":"vless","server":$server,"port":$reality_port,
+       "uuid":$uuid,"network":"tcp","tls":true,"udp":true,"flow":"xtls-rprx-vision",
+       "servername":$sni,"client-fingerprint":"chrome",
+       "reality-opts":{"public-key":$public_key,"short-id":$short_id}}
+    ],
+    "proxy-groups":[
+      {"name":"SMART-AUTO","type":"fallback","proxies":["HY2-PRIMARY","REALITY-BACKUP"],
+       "url":"https://www.gstatic.com/generate_204","interval":3,"timeout":3000,
+       "lazy":false,"max-failed-times":1}
+    ],
+    "rules":["MATCH,SMART-AUTO"]
+  }' >"$ROOT_DIR/mihomo-hy2-first-failover.yaml"
 chmod 600 "$ROOT_DIR/mihomo-hy2-first-failover.yaml"
 ok 'fallback顺序固定为HY2第一、REALITY第二；每3秒复检并自动回切。'
 

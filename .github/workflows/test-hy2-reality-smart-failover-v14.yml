@@ -18,8 +18,8 @@ jobs:
         run: |
           bash -n install_hy2_reality_smart_failover_v14.sh
           shellcheck -x -S error install_hy2_reality_smart_failover_v14.sh
-          grep -q 'type: fallback' install_hy2_reality_smart_failover_v14.sh
-          grep -q 'proxies: \[HY2-PRIMARY, REALITY-BACKUP\]' install_hy2_reality_smart_failover_v14.sh
+          grep -q '"type":"fallback"' install_hy2_reality_smart_failover_v14.sh
+          grep -q '"HY2-PRIMARY","REALITY-BACKUP"' install_hy2_reality_smart_failover_v14.sh
       - name: Install complete v14 from zero
         run: |
           set +e
@@ -39,7 +39,8 @@ jobs:
           done
           sudo cp /etc/hy2-reality-smart-v14/mihomo-hy2-first-failover.yaml /tmp/failover.yaml
           sudo chmod 644 /tmp/failover.yaml
-          sed -Ei 's/server: [0-9.]+/server: 127.0.0.1/' /tmp/failover.yaml
+          jq '(.proxies[].server)="127.0.0.1"' /tmp/failover.yaml >/tmp/failover-local.yaml
+          mv /tmp/failover-local.yaml /tmp/failover.yaml
           docker run --rm --network host -v /tmp/failover.yaml:/root/.config/mihomo/config.yaml:ro metacubex/mihomo:latest -t
       - name: Prove HY2 failure, REALITY takeover and HY2 failback
         run: |
