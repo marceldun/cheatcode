@@ -1,0 +1,19 @@
+HY2 v8验证报告（2026-11-12）
+result=PASS
+complete_install=0
+service_active=0
+no_external_restart_timer=0
+hy2_only_config=0
+no_reality_or_auto_distribution=0
+udp_conflict_auto_avoided=0
+ping0_country_detected=0
+shadowrocket_name_format=0
+encoded_import_link_name=0
+old_external_probe_masked=0
+real_process_crash_auto_recovers=0
+调优等级：2/2
+三次首字节：0.103444、0.096538、0.102391秒
+32MB首字节：0.201503秒
+持续下载：449.6 Mbps
+
+结论：脚本安装、HY2配置、旧探针永久屏蔽、无新外部探针、真实进程崩溃恢复和公网传输全部通过。公网UDP仍受运营商、路由器和跨境线路控制，单一UDP协议无法从技术上保证绝对零掉线。
