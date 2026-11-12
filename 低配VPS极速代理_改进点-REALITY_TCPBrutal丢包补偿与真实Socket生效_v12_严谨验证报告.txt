@@ -1,0 +1,71 @@
+REALITY TCP Brutal 丢包补偿 v12 严谨验证报告
+====================================================
+
+验证日期：2026-11-12
+验证环境：GitHub Actions Ubuntu 24.04.5 LTS / Linux 7.0.0-1017-azure / amd64
+工作流：.github/workflows/test-fast-reality-v12.yml
+最终运行：https://github.com/marceldun/cheatcode/actions/runs/43203547895
+结果：PASS
+
+安装与兼容性
+--------------
+complete_install=0
+service_active=0
+brutal_parameter_service_active=0
+tcp_brutal_kernel_module_active=0
+existing_hy2_untouched=0
+v11_files_preserved=0
+v11_runtime_replaced_without_port_conflict=0
+credentials_preserved=0
+same_port_preserved=0
+
+协议与内核生效性
+----------------
+vless_vision_enabled=0
+raw_tcp_transport=0
+reality_security_enabled=0
+tcp_fast_open_enabled=0
+reality_listener_explicitly_uses_brutal=0
+real_reality_transfer_has_active_brutal_group_member=0
+global_noroute_rule_isolated_to_brutal_sockets=0
+brutal_not_unsafe_system_default=0
+vision_zero_buffer_policy=0
+restrictive_16k_send_limit_removed=0
+expanded_tcp_window=0
+xray_zero_buffer_environment=0
+
+真实传输期间的官方 brutalctl 内核输出
+-----------------------------------------
+DESTINATION                     RATE(Mbps)  GAIN  LOCK  ROUTE   ID  MEMBERS   SENT(MB)
+0.0.0.0/0                           100.00    20   yes     no    1        1       13.3
+
+说明：
+- MEMBERS=1 表示正在传输的 REALITY TCP socket 已真正加入 Brutal 内核组，不是只写了配置。
+- ROUTE=no 表示规则为 noroute，没有替换 VPS 默认路由。
+- 系统默认拥塞控制仍是 BBR，只有 REALITY 监听 socket 明确选择 brutal。
+
+持续稳定性验证
+--------------
+sustained_120_requests_and_96MiB=0
+real_process_crash_auto_recovers=0
+no_external_restart_probe=0
+
+本次测试数据
+------------
+v11 32MiB 无丢包基线：469.6 Mbps
+v12 32MiB 限速补偿组：95.8 Mbps（目标 100 Mbps）
+5次网页首字节：5.056181,0.062170,0.053675,0.055384,0.052260s
+
+正确解读：
+- v12 不是要在无丢包的云机回环环境超过 v11；它把 REALITY 发送行为锁定到 100 Mbps Brutal，用于改善高延迟/丢包线路。
+- 95.8 Mbps 贴近 100 Mbps 目标，证明限速与补偿内核路径已实际生效。
+- 对完全无丢包且本来就超过 100 Mbps 的线路，v11 会更快；v12 的目标是用丢包补偿拯救客户端实际只有十几 Mbps 的劣质 TCP 路径。
+- Brutal 无法凭空创造 VPS 物理带宽，也无法修复运营商完全不可达或硬性限速。
+
+安全与供应链
+------------
+- Xray 官方 ZIP 通过官方 .dgst SHA-256 校验。
+- TCP Brutal 固定为官方 v2.0.1。
+- 安装器 SHA-256：399eebb8df5e14f4ca1e11468b292f27585f633aa56f08d0c20e9eb1d5f35880
+- DKMS 源码包 SHA-256：64a2778f308f7684cb5a137d578bc071e373960a3b9b79f9de015b84b29a7299
+
