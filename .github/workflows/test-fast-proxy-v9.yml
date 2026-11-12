@@ -1,0 +1,120 @@
+name: Test HY2 v9 stability-first configuration
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - install_fast_proxy_v9.sh
+      - .github/workflows/test-fast-proxy-v9.yml
+permissions:
+  contents: write
+jobs:
+  full-install-and-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static and curl-free bootstrap checks
+        run: |
+          bash -n install_fast_proxy_v9.sh
+          shellcheck -x -S error install_fast_proxy_v9.sh
+          docker run --rm ubuntu:24.04 bash -lc 'set -e; ! command -v curl; export DEBIAN_FRONTEND=noninteractive; apt-get update -y >/dev/null; apt-get install -y --no-install-recommends ca-certificates curl >/dev/null; curl -fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v9.sh -o /tmp/v9.sh; test -s /tmp/v9.sh; bash -n /tmp/v9.sh'
+          curl -4fsSL --connect-timeout 10 --max-time 20 https://ipv4.ping0.cc/geo >/tmp/ping0-geo.txt
+          test -n "$(sed -n '2p' /tmp/ping0-geo.txt)"
+          curl -4fsSL https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v9.sh -o /tmp/downloaded-v9.sh
+          cmp install_fast_proxy_v9.sh /tmp/downloaded-v9.sh
+      - name: Occupy UDP 443
+        run: |
+          sudo python3 - <<'PY' >/tmp/block443.log 2>&1 &
+          import socket,time
+          s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.bind(('0.0.0.0',443))
+          open('/tmp/block443.ready','w').close()
+          time.sleep(1800)
+          PY
+          echo $! >/tmp/block443.pid
+          for i in $(seq 1 20); do
+            if [ -f /tmp/block443.ready ]; then exit 0; fi
+            sleep 0.2
+          done
+          echo 'UDP 443 blocker did not bind' >&2
+          exit 1
+      - name: Run complete installer
+        run: |
+          set +e
+          sudo env MEM_KB_OVERRIDE=262144 bash /tmp/downloaded-v9.sh >/tmp/install-v9.log 2>&1
+          echo $? >/tmp/install-v9.rc
+          exit 0
+      - name: Run a two-minute sustained HY2 session
+        run: |
+          set +e
+          sudo bash -c '
+            . /etc/sing-box/fast-v9.env
+            port=$(jq -r ".inbounds[0].listen_port" /etc/sing-box/config.json)
+            cat >/tmp/v9-soak-client.json <<EOF
+          {"log":{"level":"error"},"inbounds":[{"type":"socks","listen":"127.0.0.1","listen_port":19081}],"outbounds":[{"type":"hysteria2","server":"127.0.0.1","server_port":$port,"password":"$HY2_PASSWORD","tls":{"enabled":true,"server_name":"addons.mozilla.org","insecure":true,"alpn":["h3"]}}]}
+          EOF
+            /etc/sing-box/sing-box run -c /tmp/v9-soak-client.json >/tmp/v9-soak-client.log 2>&1 &
+            cp=$!; trap "kill $cp 2>/dev/null || true" EXIT; sleep 2
+            failures=0
+            for i in $(seq 1 120); do
+              code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19081 --max-time 15 "https://www.gstatic.com/generate_204?v9=$i")
+              [ "$code" = 204 ] || failures=$((failures+1))
+              sleep 1
+            done
+            for i in 1 2 3; do
+              code=$(curl --noproxy "" -sS -o /dev/null -w "%{http_code}" --socks5-hostname 127.0.0.1:19081 --max-time 90 "https://speed.cloudflare.com/__down?bytes=33554432&v9=$i")
+              [ "$code" = 200 ] || failures=$((failures+1))
+            done
+            echo "$failures" >/tmp/v9-soak.failures
+            kill $cp 2>/dev/null; wait $cp 2>/dev/null
+          '
+          test -f /tmp/v9-soak.failures || echo 999 >/tmp/v9-soak.failures
+          exit 0
+      - name: Validate conservative HY2 runtime and recovery
+        run: |
+          set +e
+          report=/tmp/proxy-v9-test-report.txt; : > "$report"; failed=0
+          record(){ echo "$1=$2" >>"$report"; [ "$2" -eq 0 ] || failed=1; }
+          rc=$(cat /tmp/install-v9.rc); record complete_install "$rc"
+          soak=$(cat /tmp/v9-soak.failures); [ "$soak" -eq 0 ]; record sustained_120_requests_and_96MiB "$?"
+          sudo systemctl is-active --quiet sing-box; record service_active "$?"
+          ! sudo systemctl list-unit-files --no-legend | grep -q '^sb-fast-health-v9.timer'; record no_external_restart_timer "$?"
+          count=$(sudo jq '.inbounds|length' /etc/sing-box/config.json 2>/dev/null); type=$(sudo jq -r '.inbounds[0].type' /etc/sing-box/config.json 2>/dev/null)
+          [ "$count" = 1 ] && [ "$type" = hysteria2 ]; record hy2_only_config "$?"
+          ! sudo grep -qiE 'vless|reality|urltest' /etc/sing-box/config.json; record no_reality_or_auto_distribution "$?"
+          port=$(sudo jq -r '.inbounds[0].listen_port' /etc/sing-box/config.json); [ "$port" != 443 ]; record udp_conflict_auto_avoided "$?"
+          [ "$(sudo jq -r '.inbounds[0].ignore_client_bandwidth' /etc/sing-box/config.json)" = true ]; record ignores_wrong_client_bandwidth "$?"
+          [ "$(sudo jq -r '.inbounds[0].bbr_profile // empty' /etc/sing-box/config.json)" = standard ]; record standard_bbr_profile "$?"
+          [ "$(sudo jq -r '.inbounds[0].stream_receive_window // empty' /etc/sing-box/config.json)" = '8 MB' ]; record conservative_stream_window "$?"
+          [ "$(sudo jq -r '.inbounds[0].connection_receive_window // empty' /etc/sing-box/config.json)" = '32 MB' ]; record conservative_connection_window "$?"
+          [ "$(sudo jq -r '.inbounds[0].max_concurrent_streams // empty' /etc/sing-box/config.json)" = 128 ]; record bounded_concurrent_streams "$?"
+          [ "$(sudo jq -r '.inbounds[0].keep_alive_period // empty' /etc/sing-box/config.json)" = 10s ]; record keepalive_10s "$?"
+          [ "$(sudo jq -r '.inbounds[0].idle_timeout // empty' /etc/sing-box/config.json)" = 300s ]; record idle_timeout_300s "$?"
+          sudo grep -q '^ping0.cc位置：..' /root/sing-box-fast-v9-info.txt; record ping0_country_detected "$?"
+          sudo grep -q '节点名称：.* 纯净独享IP' /root/sing-box-fast-v9-info.txt; record shadowrocket_name_format "$?"
+          sudo grep -qE '^hysteria2://.*#.*%E7%BA%AF%E5%87%80%E7%8B%AC%E4%BA%ABIP' /root/sing-box-fast-v9-info.txt; record encoded_import_link_name "$?"
+          old_ok=0
+          for old in v5 v6 v7 v8; do
+            sudo test "$(systemctl is-enabled sb-fast-health-$old.timer 2>/dev/null)" = masked || old_ok=1
+          done
+          record all_old_external_probes_masked "$old_ok"
+          pid=$(systemctl show sing-box -p MainPID --value); sudo kill -9 "$pid"
+          ok=1; for i in $(seq 1 20); do sleep 1; sudo systemctl is-active --quiet sing-box && { newpid=$(systemctl show sing-box -p MainPID --value); [ "$newpid" != "$pid" ] && { ok=0; break; }; }; done
+          record real_process_crash_auto_recovers "$ok"
+          sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/install-v9.log | grep -E '调优等级|连续3次网页测试|小火箭节点名' >>"$report" || true
+          if [ "$failed" -eq 0 ]; then echo result=PASS >>"$report"; else echo result=FAIL >>"$report"; tail -180 /tmp/install-v9.log >>"$report"; fi
+      - name: Publish report
+        if: always()
+        run: |
+          cp /tmp/proxy-v9-test-report.txt /tmp/TEST_REPORT.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git checkout --orphan proxy-v9-test-report
+          git rm -rf .
+          cp /tmp/TEST_REPORT.txt TEST_REPORT.txt
+          git add TEST_REPORT.txt
+          git commit -m "Proxy v9 test report $GITHUB_SHA"
+          git push --force origin HEAD:proxy-v9-test-report
+      - name: Set final result
+        if: always()
+        run: grep -q '^result=PASS$' /tmp/proxy-v9-test-report.txt
