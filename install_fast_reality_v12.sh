@@ -279,7 +279,7 @@ while :; do
     if /usr/local/bin/brutalctl add "$prefix" "$REALITY_BRUTAL_MBPS" gain=20; then
       printf '%s\n' "$prefix" >>"$STATE"
       # 第一条连接建立时规则尚不存在；只终止该端口到该客户的旧连接，促使客户端立即自动重连。
-      ss -K state established sport = :"$REALITY_PORT" dst "$ip" >/dev/null 2>&1 || true
+      timeout 2 ss -K state established sport = :"$REALITY_PORT" dst "$ip" >/dev/null 2>&1 || true
       echo "REALITY client $prefix now uses TCP Brutal ${REALITY_BRUTAL_MBPS}Mbps; first connection was recycled"
     fi
   done < <(ss -Htn state established "sport = :$REALITY_PORT" 2>/dev/null | awk '{print $4}' | sort -u)

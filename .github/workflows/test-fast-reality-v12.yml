@@ -48,7 +48,7 @@ jobs:
       - name: Run a two-minute sustained REALITY session
         run: |
           set +e
-          sudo bash -c '
+          sudo timeout 120 bash -c '
             . /etc/xray-reality-v12/state.env
             port=$(jq -r ".inbounds[0].port" /etc/xray-reality-v12/config.json)
             cat >/tmp/v12-soak-client.json <<EOF
@@ -117,7 +117,7 @@ jobs:
             active=1
             for i in $(seq 1 20); do
               sleep 1
-              ss -tin state established sport = :"$port" dst 10.212.12.2 | tee /tmp/v12-brutal-socket.txt | grep -qw brutal && { active=0; break; }
+              (timeout 3 ss -tin state established sport = :"$port" dst 10.212.12.2 || true) | tee /tmp/v12-brutal-socket.txt | grep -qw brutal && { active=0; break; }
             done
             kill "$secondcurl" 2>/dev/null || true; wait "$secondcurl" 2>/dev/null || true
             [ "$active" -eq 0 ]
