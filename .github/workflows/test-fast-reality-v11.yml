@@ -104,7 +104,7 @@ jobs:
             for i in $(seq 1 20); do sleep 1; sudo systemctl is-active --quiet xray-reality-v11 && { np=$(systemctl show xray-reality-v11 -p MainPID --value); [ "$np" != "$pid" ] && [ "$np" -gt 1 ] && { ok=0; break; }; }; done
           fi
           record real_process_crash_auto_recovers "$ok"
-          echo "v10_32MiB=$(awk -F'持续下载 ' '/32MB测试/{print $2}' /tmp/v10-info.txt)" >>"$report"
+          echo "v10_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /tmp/v10-info.txt)" >>"$report"
           echo "v11_32MiB=$(sudo awk -F'持续下载 ' '/32MB测试/{print $2}' /root/xray-reality-v11-info.txt)" >>"$report"
           sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/install-v11.log | grep -E '官方内核已校验|5次网页通过|小火箭节点名' >>"$report" || true
           if [ "$failed" -eq 0 ]; then echo result=PASS >>"$report"; else echo result=FAIL >>"$report"; tail -200 /tmp/install-v11.log >>"$report"; fi
