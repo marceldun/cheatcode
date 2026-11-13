@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+# HY2 v8 + REALITY v13 + Throne/Shadowrocket 原生远程配置 v24
+# 不生成、不交付 Mihomo/Clash 配置。
+set -Eeuo pipefail
+
+VERSION=24.0.0
+ROOT_DIR=/etc/hy2-reality-remote-v24
+PUBLIC_DIR=$ROOT_DIR/public
+LOG=/root/hy2-reality-v24-install.log
+DONE=/root/hy2-reality-v24-install.done
+RUNNER=/root/install_hy2_reality_throne_shadowrocket_v24.sh
+TMP="$(mktemp -d /tmp/hy2-reality-v24.XXXXXX)"
+R='\033[31m'; G='\033[32m'; C='\033[36m'; N='\033[0m'
+step(){ printf '\n%b[%s/8] %s%b\n' "$C" "$1" "$2" "$N"; }
+ok(){ printf '%b[成功] %s%b\n' "$G" "$*" "$N"; }
+die(){ printf '%b[失败] %s%b\n' "$R" "$*" "$N" >&2; exit 1; }
+cleanup(){ local rc=$?; rm -rf "$TMP"; exit "$rc"; }
+trap cleanup EXIT
+
+[ "$(id -u)" -eq 0 ] || die '请使用root账号执行。'
+command -v systemctl >/dev/null || die '当前系统不是systemd。'
+
+if [ "${V24_WORKER:-0}" != 1 ]; then
+  install -m 700 "${BASH_SOURCE[0]}" "$RUNNER"
+  : >"$LOG"; rm -f "$DONE"
+  unit="hy2-reality-v24-installer-$(date +%s)"
+  systemd-run --unit="$unit" --property=Type=exec /bin/bash -c \
+    "V24_WORKER=1 bash '$RUNNER' >>'$LOG' 2>&1; rc=\$?; echo \$rc >'$DONE'; exit \$rc" >/dev/null
+  ok 'v24后台安装已启动；命令立即结束，SSH断开也不会中止。'
+  printf '结果：%s（0=成功）\n日志：%s\n' "$DONE" "$LOG"
+  exit 0
+fi
+
+step 1 '检查系统并建立重启自动续装'
+. /etc/os-release 2>/dev/null || true
+case "${ID:-}" in ubuntu|debian) ;; *) die '仅支持Ubuntu/Debian。' ;; esac
+cat >/etc/systemd/system/hy2-reality-v24-resume.service <<EOF
+[Unit]
+Description=Resume HY2 REALITY remote config v24
+After=network-online.target hy2-reality-v14-resume.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'V24_WORKER=1 bash $RUNNER >>$LOG 2>&1; rc=\$?; echo \$rc >$DONE; exit \$rc'
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable hy2-reality-v24-resume.service >/dev/null
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y >/dev/null
+apt-get install -y --no-install-recommends ca-certificates curl jq openssl python3 iproute2 qrencode >/dev/null
+ok '自动续装已启用。'
+
+download(){ local url=$1 dst=$2 p; for p in '' 'https://ghfast.top/' 'https://gh-proxy.com/'; do curl -A v24 -fL --retry 3 --connect-timeout 10 --max-time 300 -o "$dst" "${p}${url}" 2>/dev/null && [ -s "$dst" ] && return 0; done; return 1; }
+
+step 2 '从零安装HY2与免内核模块REALITY'
+if ! systemctl is-active --quiet sing-box; then
+  download 'https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_proxy_v8.sh' "$TMP/hy2-v8.sh" || die 'HY2安装器下载失败。'
+  bash -n "$TMP/hy2-v8.sh"
+  SB_FAST_V8_WORKER=1 bash "$TMP/hy2-v8.sh" || die 'HY2安装失败。'
+fi
+systemctl is-active --quiet sing-box || die 'HY2服务未运行。'
+
+# 已正常运行v13就沿用；新环境使用不依赖DKMS/headers/TCP Brutal的v11，避免云商内核导致整套安装失败。
+if systemctl is-active --quiet xray-reality-v13; then
+  REALITY_SERVICE=xray-reality-v13
+  REALITY_DIR=/etc/xray-reality-v13
+elif systemctl is-active --quiet xray-reality-v11; then
+  REALITY_SERVICE=xray-reality-v11
+  REALITY_DIR=/etc/xray-reality-v11
+else
+  download 'https://raw.githubusercontent.com/marceldun/cheatcode/main/install_fast_reality_v11.sh' "$TMP/reality-v11.sh" || die 'REALITY兼容安装器下载失败。'
+  bash -n "$TMP/reality-v11.sh"
+  REALITY_V11_WORKER=1 bash "$TMP/reality-v11.sh" || die '免内核模块REALITY安装失败。'
+  REALITY_SERVICE=xray-reality-v11
+  REALITY_DIR=/etc/xray-reality-v11
+fi
+systemctl is-active --quiet "$REALITY_SERVICE" || die 'REALITY服务未运行。'
+ok "HY2与REALITY均已运行；REALITY服务：$REALITY_SERVICE。"
+
+step 3 '分别生成Throne电脑与手机原生配置'
+. /etc/sing-box/fast-v8.env
+. "$REALITY_DIR/state.env"
+HY2_ACTUAL_PORT="$(jq -r '.inbounds[0].listen_port' /etc/sing-box/config.json)"
+REALITY_ACTUAL_PORT="$(jq -r '.inbounds[0].port' "$REALITY_DIR/config.json")"
+PUBLIC_IP="$(curl -4fsS --max-time 15 https://api.ipify.org)"
+[ -n "$PUBLIC_IP" ] || die '无法取得VPS公网IPv4。'
+PING0_RAW=''
+for _ in 1 2 3; do
+  for geo_url in https://ipv4.ping0.cc/geo https://ping0.cc/geo; do
+    PING0_RAW="$(curl -4fsSL --connect-timeout 6 --max-time 15 "$geo_url" 2>/dev/null | tr -d '\r' || true)"
+    [ -n "$PING0_RAW" ] && break 2
+  done
+  sleep 1
+done
+PING0_IP="$(printf '%s\n' "$PING0_RAW" | sed -n '1p' | awk '{print $1}')"
+GEO_LOC="$(printf '%s\n' "$PING0_RAW" | sed -n '2p')"
+COUNTRY_CN="$(printf '%s' "$GEO_LOC" | awk '{print $1}')"
+[ -n "$COUNTRY_CN" ] || die 'ping0.cc没有返回国家位置；已阻止生成假国家名称。'
+[ "$PING0_IP" = "$PUBLIC_IP" ] || die "ping0.cc检测IP($PING0_IP)与节点IP($PUBLIC_IP)不一致；已阻止错误命名。"
+flag_of(){ case "$1" in
+  美国) echo '🇺🇸';; 加拿大) echo '🇨🇦';; 英国) echo '🇬🇧';; 德国) echo '🇩🇪';; 法国) echo '🇫🇷';; 荷兰) echo '🇳🇱';;
+  日本) echo '🇯🇵';; 韩国) echo '🇰🇷';; 新加坡) echo '🇸🇬';; 印度尼西亚|印尼) echo '🇮🇩';; 马来西亚) echo '🇲🇾';; 泰国) echo '🇹🇭';; 越南) echo '🇻🇳';; 菲律宾) echo '🇵🇭';;
+  中国) echo '🇨🇳';; 中国香港|香港) echo '🇭🇰';; 中国台湾|台湾) echo '🇹🇼';; 中国澳门|澳门) echo '🇲🇴';;
+  澳大利亚) echo '🇦🇺';; 新西兰) echo '🇳🇿';; 印度) echo '🇮🇳';; 巴基斯坦) echo '🇵🇰';; 沙特阿拉伯) echo '🇸🇦';; 阿联酋) echo '🇦🇪';; 土耳其) echo '🇹🇷';; 以色列) echo '🇮🇱';;
+  俄罗斯) echo '🇷🇺';; 乌克兰) echo '🇺🇦';; 波兰) echo '🇵🇱';; 瑞士) echo '🇨🇭';; 瑞典) echo '🇸🇪';; 挪威) echo '🇳🇴';; 芬兰) echo '🇫🇮';; 丹麦) echo '🇩🇰';; 爱尔兰) echo '🇮🇪';; 意大利) echo '🇮🇹';; 西班牙) echo '🇪🇸';; 葡萄牙) echo '🇵🇹';;
+  巴西) echo '🇧🇷';; 阿根廷) echo '🇦🇷';; 墨西哥) echo '🇲🇽';; 南非) echo '🇿🇦';; 埃及) echo '🇪🇬';; *) echo '🌐';; esac; }
+FLAG="$(flag_of "$COUNTRY_CN")"
+NODE_BASE="$FLAG $COUNTRY_CN 纯净独享IP"
+HY2_NODE="$NODE_BASE HY2"
+REALITY_NODE="$NODE_BASE 备用"
+GROUP_NAME="$FLAG $COUNTRY_CN HY2优先自动组"
+install -d -m 700 "$ROOT_DIR" "$PUBLIC_DIR"
+TOKEN="$(cat "$ROOT_DIR/token" 2>/dev/null || true)"
+[ "${#TOKEN}" -ge 32 ] || TOKEN="$(openssl rand -hex 24)"
+printf '%s' "$TOKEN" >"$ROOT_DIR/token"; chmod 600 "$ROOT_DIR/token"
+install -d -m 700 "$PUBLIC_DIR/$TOKEN"
+
+jq -n \
+  --arg ip "$PUBLIC_IP" --arg hp "$HY2_PASSWORD" --arg uuid "$UUID" \
+  --arg sni "$REALITY_DOMAIN" --arg pbk "$REALITY_PUBLIC" --arg sid "$SHORT_ID" \
+  --arg hy2_name "$HY2_NODE" --arg reality_name "$REALITY_NODE" --arg group_name "$GROUP_NAME" \
+  --argjson hport "$HY2_ACTUAL_PORT" --argjson rport "$REALITY_ACTUAL_PORT" \
+  '{log:{level:"warn",timestamp:true},
+    inbounds:[{type:"mixed",tag:"mixed-in",listen:"127.0.0.1",listen_port:2080}],
+    outbounds:[
+      {type:"hysteria2",tag:$hy2_name,server:$ip,server_port:$hport,password:$hp,
+       tls:{enabled:true,server_name:$sni,insecure:true,alpn:["h3"]}},
+      {type:"vless",tag:$reality_name,server:$ip,server_port:$rport,uuid:$uuid,
+       flow:"xtls-rprx-vision",tls:{enabled:true,server_name:$sni,
+       utls:{enabled:true,fingerprint:"chrome"},reality:{enabled:true,public_key:$pbk,short_id:$sid}}},
+      {type:"urltest",tag:$group_name,outbounds:[$hy2_name,$reality_name],
+       url:"https://www.gstatic.com/generate_204",interval:"10s",tolerance:1,
+       idle_timeout:"30m",interrupt_exist_connections:true}],
+    route:{auto_detect_interface:true,final:$group_name}}' >"$ROOT_DIR/throne-desktop-core.json"
+
+jq --arg ip "$PUBLIC_IP" '.inbounds=[{type:"tun",tag:"tun-in",address:["172.19.0.1/24"],mtu:1400,
+  auto_route:true,route_exclude_address:[($ip+"/32")]}]' \
+  "$ROOT_DIR/throne-desktop-core.json" >"$ROOT_DIR/throne-mobile-core.json"
+
+make_throne_sub(){
+  local cfg=$1 name=$2 out=$3 custom b64
+  custom="$(jq -cn --arg cfg "$(jq -c . "$cfg")" --arg name "$name" \
+    '{type:"custom",subtype:"fullconfig",name:$name,tag:$name,config:$cfg}')"
+  b64="$(printf '%s' "$custom" | base64 -w0 | tr '+/' '-_' | tr -d '=')"
+  printf 'throne://add/%s\n' "$b64" >"$out"
+}
+make_throne_sub "$ROOT_DIR/throne-desktop-core.json" "$GROUP_NAME 电脑系统代理" "$PUBLIC_DIR/$TOKEN/throne-desktop.txt"
+make_throne_sub "$ROOT_DIR/throne-mobile-core.json" "$GROUP_NAME 手机TUN" "$PUBLIC_DIR/$TOKEN/throne-mobile.txt"
+chmod 600 "$ROOT_DIR"/throne-*-core.json "$PUBLIC_DIR/$TOKEN"/throne-*.txt
+ok 'Throne电脑mixed与手机TUN配置已完全分离。'
+
+step 4 '生成苹果小火箭原生fallback远程配置'
+cat >"$PUBLIC_DIR/$TOKEN/shadowrocket.conf" <<EOF
+[General]
+bypass-system = true
+dns-server = system, 1.1.1.1, 8.8.8.8
+ipv6 = false
+
+[Proxy]
+$HY2_NODE = hysteria2, $PUBLIC_IP, $HY2_ACTUAL_PORT, auth=$HY2_PASSWORD, udp=1, peer=$REALITY_DOMAIN, alpn=h3, skip-cert-verify=true
+$REALITY_NODE = vless, $PUBLIC_IP, $REALITY_ACTUAL_PORT, password=$UUID, tls=true, udp=1, peer=$REALITY_DOMAIN, flow=xtls-rprx-vision, reality-public-key=$REALITY_PUBLIC, reality-short-id=$SHORT_ID
+
+[Proxy Group]
+$GROUP_NAME = fallback, $HY2_NODE, $REALITY_NODE, url=https://www.gstatic.com/generate_204, interval=10, timeout=3, select=0
+
+[Rule]
+FINAL,$GROUP_NAME
+EOF
+chmod 600 "$PUBLIC_DIR/$TOKEN/shadowrocket.conf"
+ok '小火箭已按HY2第一、REALITY第二生成fallback组。'
+
+step 5 '启动随机密钥路径远程配置服务'
+# 升级时先停旧配置HTTP服务；节点服务和旧版文件均保留。
+for old_remote in hy2-reality-remote-v15.service hy2-reality-remote-v16.service hy2-reality-remote-v17.service hy2-reality-remote-v18.service hy2-reality-remote-v19.service hy2-reality-remote-v20.service hy2-reality-remote-v21.service hy2-reality-remote-v22.service hy2-reality-remote-v23.service; do
+  systemctl disable --now "$old_remote" >/dev/null 2>&1 || true
+done
+PORT="$(cat "$ROOT_DIR/port" 2>/dev/null || true)"
+if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+  PORT=80
+  ss -H -ltn 'sport = :80' | grep -q . && PORT=18080
+  while ss -H -ltn "sport = :$PORT" | grep -q .; do PORT=$((PORT+1)); [ "$PORT" -le 18120 ] || die '找不到可用配置端口。'; done
+fi
+printf '%s' "$PORT" >"$ROOT_DIR/port"
+cat >"$ROOT_DIR/server.py" <<'PY'
+#!/usr/bin/env python3
+import http.server, os, sys
+root=os.path.realpath(sys.argv[1]); port=int(sys.argv[2])
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        rel=self.path.split('?',1)[0].lstrip('/'); path=os.path.realpath(os.path.join(root,rel))
+        if not path.startswith(root+os.sep) or not os.path.isfile(path): self.send_error(404); return
+        data=open(path,'rb').read(); self.send_response(200)
+        ctype='image/png' if path.lower().endswith('.png') else 'text/plain; charset=utf-8'
+        self.send_header('Content-Type',ctype); self.send_header('Cache-Control','no-store')
+        self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
+    def log_message(self,*args): pass
+http.server.ThreadingHTTPServer(('0.0.0.0',port),H).serve_forever()
+PY
+chmod 700 "$ROOT_DIR/server.py"
+cat >/etc/systemd/system/hy2-reality-remote-v24.service <<EOF
+[Unit]
+Description=Throne and Shadowrocket remote configs v24
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 $ROOT_DIR/server.py $PUBLIC_DIR $PORT
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=$PUBLIC_DIR
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now hy2-reality-remote-v24.service >/dev/null
+if command -v ufw >/dev/null; then ufw allow "$PORT/tcp" >/dev/null 2>&1 || true; fi
+if command -v firewall-cmd >/dev/null; then firewall-cmd --permanent --add-port="$PORT/tcp" >/dev/null 2>&1 || true; firewall-cmd --reload >/dev/null 2>&1 || true; fi
+ready=0
+for _ in $(seq 1 30); do
+  if systemctl is-active --quiet hy2-reality-remote-v24.service && ss -H -ltn "sport = :$PORT" | grep -q .; then ready=1; break; fi
+  sleep 0.2
+done
+if [ "$ready" -ne 1 ]; then
+  journalctl -u hy2-reality-remote-v24.service -n 30 --no-pager >&2 || true
+  die "远程配置服务未能监听TCP $PORT。"
+fi
+ok "远程配置服务已真实监听：TCP $PORT。"
+
+step 6 '生成电脑、手机和小火箭独立导入地址'
+THRONE_DESKTOP_URL="http://$PUBLIC_IP:$PORT/$TOKEN/throne-desktop.txt"
+THRONE_MOBILE_URL="http://$PUBLIC_IP:$PORT/$TOKEN/throne-mobile.txt"
+SHADOW_URL="http://$PUBLIC_IP:$PORT/$TOKEN/shadowrocket.conf"
+THRONE_DESKTOP_B64="$(printf '%s' "$THRONE_DESKTOP_URL" | base64 -w0 | tr '+/' '-_' | tr -d '=')"
+THRONE_MOBILE_B64="$(printf '%s' "$THRONE_MOBILE_URL" | base64 -w0 | tr '+/' '-_' | tr -d '=')"
+THRONE_DESKTOP_DEEP="throne://addsub/$THRONE_DESKTOP_B64#V24-DESKTOP"
+THRONE_MOBILE_DEEP="throne://addsub/$THRONE_MOBILE_B64#V24-MOBILE"
+# Shadowrocket官方URL Scheme要求在/add/后直接放原始配置URL；不能百分号编码。
+SHADOW_DEEP="shadowrocket://config/add/$SHADOW_URL"
+SHADOW_QR_URL="http://$PUBLIC_IP:$PORT/$TOKEN/shadowrocket-import.png"
+qrencode -l M -s 8 -m 3 -o "$PUBLIC_DIR/$TOKEN/shadowrocket-import.png" "$SHADOW_DEEP"
+chmod 600 "$PUBLIC_DIR/$TOKEN/shadowrocket-import.png"
+RAW_HY2_LINK="$(grep -m1 '^hysteria2://' /root/sing-box-fast-v8-info.txt 2>/dev/null || true)"
+[ -n "$RAW_HY2_LINK" ] || die '找不到已真实验证的HY2原生节点链接。'
+HY2_ENCODED_NAME="$(jq -rn --arg v "$HY2_NODE" '$v|@uri')"
+HY2_DIRECT_LINK="${RAW_HY2_LINK%%#*}#${HY2_ENCODED_NAME}"
+HY2_DIRECT_QR_URL="http://$PUBLIC_IP:$PORT/$TOKEN/shadowrocket-hy2-direct.png"
+qrencode -l M -s 8 -m 3 -o "$PUBLIC_DIR/$TOKEN/shadowrocket-hy2-direct.png" "$HY2_DIRECT_LINK"
+chmod 600 "$PUBLIC_DIR/$TOKEN/shadowrocket-hy2-direct.png"
+cat >"/root/Throne和苹果小火箭远程配置_v24.txt" <<EOF
+v$VERSION
+Throne电脑：mixed系统代理，不启动TUN
+Throne手机：独立TUN/VPN自动路由
+ping0.cc检测IP：$PING0_IP
+ping0.cc位置：$GEO_LOC
+HY2节点名称：$HY2_NODE
+REALITY节点名称：$REALITY_NODE
+自动组名称：$GROUP_NAME
+
+Windows Throne一键导入：
+$THRONE_DESKTOP_DEEP
+
+Throne手机TUN一键导入：
+$THRONE_MOBILE_DEEP
+
+苹果小火箭HY2原生节点链接（优先用这个恢复手机网络）：
+$HY2_DIRECT_LINK
+
+苹果小火箭HY2原生节点二维码图片：
+$HY2_DIRECT_QR_URL
+
+苹果小火箭远程配置地址：
+$SHADOW_URL
+
+苹果小火箭一键导入链接：
+$SHADOW_DEEP
+
+苹果小火箭扫码二维码图片：
+$SHADOW_QR_URL
+
+下面第一个二维码是HY2原生节点；请先用小火箭内部扫码器扫描：
+EOF
+qrencode -l M -t UTF8 "$HY2_DIRECT_LINK" >>"/root/Throne和苹果小火箭远程配置_v24.txt"
+cat >>"/root/Throne和苹果小火箭远程配置_v24.txt" <<EOF
+
+下面第二个二维码是自动组完整配置；使用iPhone系统相机扫描：
+EOF
+qrencode -l M -t UTF8 "$SHADOW_DEEP" >>"/root/Throne和苹果小火箭远程配置_v24.txt"
+chmod 600 "/root/Throne和苹果小火箭远程配置_v24.txt"
+ok '导入地址、小火箭一键链接和二维码均已保存。'
+
+step 7 '执行唯一一次综合验证'
+systemctl is-active --quiet sing-box "$REALITY_SERVICE" hy2-reality-remote-v24 || die '服务状态验证失败。'
+curl -fsS --max-time 5 "http://127.0.0.1:$PORT/$TOKEN/throne-desktop.txt" | grep -q '^throne://add/' || die 'Throne电脑配置读取失败。'
+curl -fsS --max-time 5 "http://127.0.0.1:$PORT/$TOKEN/throne-mobile.txt" | grep -q '^throne://add/' || die 'Throne手机配置读取失败。'
+curl -fsS --max-time 5 "http://127.0.0.1:$PORT/$TOKEN/shadowrocket.conf" | grep -Fq "$GROUP_NAME = fallback" || die '小火箭配置读取失败。'
+SB_CLIENT_BIN=/etc/sing-box/sing-box
+if [ ! -x "$SB_CLIENT_BIN" ]; then SB_CLIENT_BIN="$(command -v sing-box || true)"; fi
+[ -n "$SB_CLIENT_BIN" ] && [ -x "$SB_CLIENT_BIN" ] || die '找不到HY2正在使用的sing-box内核。'
+if ! "$SB_CLIENT_BIN" check -c "$ROOT_DIR/throne-desktop-core.json" >"$TMP/throne-check.log" 2>&1 || \
+   ! "$SB_CLIENT_BIN" check -c "$ROOT_DIR/throne-mobile-core.json" >>"$TMP/throne-check.log" 2>&1; then
+  cat "$TMP/throne-check.log" >&2
+  die 'Throne内置完整配置校验失败。'
+fi
+grep -q 'reality-public-key=' "$PUBLIC_DIR/$TOKEN/shadowrocket.conf" || die '小火箭REALITY参数缺失。'
+jq -e 'all(.inbounds[]; .type!="tun") and any(.inbounds[]; .type=="mixed")' "$ROOT_DIR/throne-desktop-core.json" >/dev/null || die 'Throne电脑配置仍包含TUN。'
+jq -e '.inbounds[] | select(.type=="tun" and .auto_route==true and .mtu==1400)' "$ROOT_DIR/throne-mobile-core.json" >/dev/null || die 'Throne手机TUN入站缺失。'
+jq -e --arg cidr "$PUBLIC_IP/32" '.inbounds[] | select(.type=="tun") | .route_exclude_address | index($cidr)' "$ROOT_DIR/throne-mobile-core.json" >/dev/null || die 'Throne手机TUN存在代理回环风险。'
+grep -Fq "$HY2_NODE = hysteria2" "$PUBLIC_DIR/$TOKEN/shadowrocket.conf" || die '小火箭HY2国家图标或名称缺失。'
+grep -Fq "$REALITY_NODE = vless" "$PUBLIC_DIR/$TOKEN/shadowrocket.conf" || die '小火箭REALITY国家图标或名称缺失。'
+test -s "$PUBLIC_DIR/$TOKEN/shadowrocket-import.png" || die '小火箭二维码生成失败。'
+test -s "$PUBLIC_DIR/$TOKEN/shadowrocket-hy2-direct.png" || die '小火箭HY2原生二维码生成失败。'
+grep -q '^shadowrocket://config/add/' "/root/Throne和苹果小火箭远程配置_v24.txt" || die '小火箭一键导入链接生成失败。'
+if find "$ROOT_DIR" -type f -exec grep -Eil 'mihomo|clash meta|proxy-groups:' {} + | grep -q .; then die '检测到禁止的Mihomo/Clash内容。'; fi
+ok '一次综合验证通过：双服务、两个客户端配置和远程下载均正常。'
+
+step 8 '完成并关闭续装任务'
+systemctl disable hy2-reality-v24-resume.service >/dev/null 2>&1 || true
+printf '\n%b安装完成。每个客户端只需首次导入一次。%b\n' "$G" "$N"
+cat "/root/Throne和苹果小火箭远程配置_v24.txt"
