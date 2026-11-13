@@ -32,17 +32,9 @@ if [ "${SMART_V14_WORKER:-0}" != 1 ]; then
   unit="hy2-reality-v14-installer-$(date +%s)"
   systemd-run --unit="$unit" --property=Type=exec /bin/bash -c \
     "set -a; . '$ENV_FILE'; set +a; SMART_V14_WORKER=1 bash '$RUNNER' >>'$LOG' 2>&1; rc=\$?; echo \$rc >'$DONE'; [ \$rc -eq 75 ] || rm -f '$ENV_FILE'; exit \$rc" >/dev/null
-  ok 'v14后台安装已启动；Xshell断开也会继续。'
-  for _ in $(seq 1 180); do
-    [ -f "$DONE" ] && break
-    tail -n 1 "$LOG" 2>/dev/null || true
-    sleep 1
-  done
-  if [ ! -f "$DONE" ]; then warn "仍在后台安装；无需重复运行。日志：$LOG"; exit 0; fi
-  rc="$(cat "$DONE")"
-  [ "$rc" = 0 ] && { cat "$LOG"; exit 0; }
-  [ "$rc" = 75 ] && { warn '正在自动换内核并重启；开机后会自动续装，无需输入任何命令。'; exit 0; }
-  die "安装失败，详情：$LOG"
+  ok 'v14后台安装已启动；命令现在立即结束。稍后HY2重启导致Xshell断开属于正常现象，安装不会中止，也不要重复运行。'
+  printf '最终状态会写入：%s（0=成功）\n完整日志：%s\n' "$DONE" "$LOG"
+  exit 0
 fi
 
 step 1 '检测系统、内核与自动续装条件'
